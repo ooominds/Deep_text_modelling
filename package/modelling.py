@@ -1,7 +1,3 @@
-####################
-# Preliminary steps
-####################
-
 ### Import necessary packages
 import itertools
 import csv 
@@ -10,12 +6,6 @@ import sys
 import numpy as np
 import random 
 import json
-# from random import shuffle
-# import os
-# import gzip
-# from linecache import getline
-# from collections.abc import Iterable
-# import pandas as pd
 
 import keras
 from keras.models import Sequential
@@ -29,20 +19,10 @@ from keras import backend as K
 ### Import local packages
 from Deep_text_classifiers.evaluation import recall, precision, f1score
 
-# import keras
-# from keras.models import Sequential
-# from keras.layers import Dropout, Dense
-# from keras.utils.np_utils import to_categorical
-# from keras.optimizers import Adam, Nadam, RMSprop, SGD
-# from keras.activations import relu, elu
-# from keras.losses import binary_crossentropy, categorical_crossentropy, logcosh
-# from keras import backend as K 
-
 ###############
 # Tokenisation
 ###############
 
-# Convert a sequence/list of cues into one-hot numpy array of length N_cues
 def seq_to_onehot_1darray(seq, index_system, N_tokens):
 
     """Convert a text sequence to a one-hot 1d array (used by FNN)
@@ -73,7 +53,6 @@ def seq_to_onehot_1darray(seq, index_system, N_tokens):
 
     return onehot_list
 
-# Convert a sequence/list of cues into one-hot numpy array of length N_cues
 def seq_to_onehot_2darray(seq, index_system, N_tokens, max_len):
 
     """Convert a text sequence to a one-hot 2d array (used by LSTM)
@@ -111,25 +90,11 @@ def seq_to_onehot_2darray(seq, index_system, N_tokens, max_len):
     onehot_array = onehot_array[:, 1:]
 
     return onehot_array
-
-# # Convert a line encoding an event into one-hot numpy arrays for the 
-# # cues (of length N_cues) and outcomes (of length N_outcomes)
-# def event_to_onehotencoding(event_line):
-
-#     # extract the cues and outcomes sequences
-#     cue_seq, outcome_seq = event_line.strip().split('\t')
-
-#     # Convert cue and outcome sequences to one-hot encoding arrays
-#     cues_onehot = seq_to_onehot_1darray(cue_seq, cue_index)
-#     outcomes_onehot = seq_to_onehot_1darray(outcome_seq, outcome_index)
-
-#     return cues_onehot, outcomes_onehot
                                          
 ###############################
 # Feedforward neural networks
 ###############################
 
-# Generator of data for keras that inherites from keras.utils.Sequence
 class generator_textfile_FNN(keras.utils.Sequence):
 
     """ Class that generates batches of data ready for training a FNN model. The data is expected to  
@@ -205,7 +170,6 @@ class generator_textfile_FNN(keras.utils.Sequence):
         # Generate data
         return X, Y
 
-# Generator of data for keras that inherites from keras.utils.Sequence
 class generator_df_FNN(keras.utils.Sequence):
 
     """ Class that generates batches of data ready for training a FNN model. The data is expected to  
@@ -275,7 +239,6 @@ class generator_df_FNN(keras.utils.Sequence):
         # Generate data
         return X, Y
 
-### Create the model function that train a FNN given a single combination of parameters and compute the performance scores
 def train_FNN(data_train, data_valid, num_cues, 
               num_outcomes, cue_index, outcome_index, 
               generator = generator_textfile_FNN, shuffle = False, 
@@ -405,7 +368,6 @@ def train_FNN(data_train, data_valid, num_cues,
     
     return out, model
 
-### Define a function that can run the grid search
 def grid_search_FNN(data_train, data_valid, num_cues, 
                     num_outcomes, cue_index, outcome_index, 
                     generator, params, prop_grid, tuning_output_file,         
@@ -531,7 +493,6 @@ def grid_search_FNN(data_train, data_valid, num_cues,
 # LSTM
 ########
 
-# Generator of data for keras that inherites from keras.utils.Sequence
 class generator_textfile_LSTM(keras.utils.Sequence):
 
     """ Class that generates batches of data ready for training an LSTM model. The data is expected to  
@@ -610,7 +571,6 @@ class generator_textfile_LSTM(keras.utils.Sequence):
         # Generate data
         return X, Y
 
-# Generator of data for keras that inherites from keras.utils.Sequence
 class generator_df_LSTM(keras.utils.Sequence):
 
     """ Class that generates batches of data ready for training an LSTM model. The data is expected to  
@@ -684,7 +644,6 @@ class generator_df_LSTM(keras.utils.Sequence):
         # Generate data
         return X, Y
 
-### Create the model function that train a FNN given a single combination of parameters and compute the performance scores
 def train_LSTM(data_train, data_valid, num_cues, 
                num_outcomes, cue_index, outcome_index, max_len, 
                generator = generator_textfile_LSTM, shuffle = False, 
@@ -800,7 +759,6 @@ def train_LSTM(data_train, data_valid, num_cues,
     
     return out, model
  
-### Define a function that can run the grid search
 def grid_search_LSTM(data_train, data_valid, num_cues, 
                      num_outcomes, cue_index, outcome_index, max_len,
                      generator, params, prop_grid, tuning_output_file, 

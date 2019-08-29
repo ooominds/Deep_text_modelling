@@ -1,14 +1,3 @@
-####################
-# Preliminary steps
-####################
-
-### Import necessary packages
-# import gzip
-# from collections import Counter
-# from pyndl.count import cues_outcomes
-# from pyndl.preprocess import create_event_file, filter_event_file
-# import numpy as np
-
 import gzip
 import csv
 import numpy as np
@@ -20,10 +9,9 @@ from random import shuffle
 # Use text file as an indexable object
 ######################################
 
-### To be able to quickly access specific lines in a text file
 class IndexedFile():
 
-    """ Class that adds indexing/slicing capabilities to a text file (.txt, .gz or .csv)
+    """ Class that adds indexing/slicing capabilities to a text file (.txt, .gz or .csv). This allows to quickly access specific lines in a text file
 
     Attributes
     ----------
@@ -45,10 +33,6 @@ class IndexedFile():
     lines = corpus_file[np.array([0, 4, 7])] # line indices given as a numpy array
     lines = corpus_file[::2] # even lines
     """
-
-    # import gzip
-    # import numpy as np
-    # from collections.abc import Iterable
 
     def __init__(self, file_path, file_type):
         'Initialization'
@@ -354,42 +338,6 @@ def orthoCoding(sent, gram_size, remove_duplicates = False, randomize_order = Fa
     cues = u"_".join(cues)
     return cues
 
-###############
-# Tokenisation
-###############
-
-# Convert an underscore-separated sequence of tokens into one-hot numpy array of length N_cues
-def sequence_to_onehotencoding(seq, onehot_len, index_system):
-
-    """Convert an underscore-separated sequence of tokens into one-hot numpy array
-
-    Parameters
-    ----------
-    seq: str
-        an underscore-separated sequence of tokens (event style)
-    onehot_len: int
-        length of the resulting numpy array
-    index_system: dict
-
-    Returns
-    -------
-    1d-numpy array
-        one-hot encoding
-    """
-
-    # Initialise the array
-    onehot_list = np.zeros(onehot_len + 1)
-
-    # Get tokens 
-    targets = seq.split('_')
-
-    # Fill in the one-hot array
-    target_indices = [index_system[w] for w in targets if w in index_system]
-    onehot_list[target_indices] = 1
-    onehot_list = onehot_list[1:]
-
-    return onehot_list
-
 ################
 # Create epochs 
 ################
@@ -397,20 +345,3 @@ def sequence_to_onehotencoding(seq, onehot_len, index_system):
 def create_epochs():
     pass
 
-
-###########################################################################################
-
-# ### Generate filtered event file keeping only the N_cues most frequent cues and N_outcomes 
-# ### most frequent outcomes
-
-# # count frequencies
-# n_events, cues, outcomes = cues_outcomes(EVENTS, number_of_processes = 8)
-
-# # Keep only the most frequent cues and outcomes                                  
-# cues_to_keep = {cue for cue, freq in cues.most_common(N_cues)} 
-# outcomes_to_keep = {outcome for outcome, freq in outcomes.most_common(N_outcomes)} 
-# filter_event_file(EVENTS,
-#                   FILTERED_EVENTS,
-#                   keep_cues = cues_to_keep,
-#                   keep_outcomes = outcomes_to_keep,
-#                   number_of_processes = no_threads)
