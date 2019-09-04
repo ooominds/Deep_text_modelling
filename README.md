@@ -39,7 +39,7 @@ The preprocessing step will generally consists of:
 
 2) Spliting the data into training, validation and test sets from dataframes or from text files.
 
-In addition, the package makes it possible to work with dataframes loaded in the workspace or directly with data files through their paths. It also has a tool that allows you to handle text files as you would handle indexed objects, that is, access any element through indices (e.g. corpus[1] would output the 2nd line of the corpus) 
+In addition, the package makes it possible to work with dataframes loaded in the workspace or directly with data files through their paths. It also has a tool that allows you to handle text files as you would handle indexed objects, that is, access any element through indices (e.g. `corpus[1]` would output the 2nd line of the corpus) 
 
 ### Modelling
 
