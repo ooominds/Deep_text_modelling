@@ -45,7 +45,7 @@ In addition, the package makes it possible to work with dataframes loaded in the
 
 The package provide functions to train feedforward neural networks and LSTMs based on Keras. Although, [Keras](https://keras.io/) is a simple framework to learn in comparison with the other major deep learning framworks, it is also a general-purpose package that was designed to work with different types of problems. By focusing on a specific type of problems (language learning and processing), we were able to create wrapper functions for training keras models that reduce the amount of coding and necessary learning. The package also offers tools for tunning the parameters and evaluating the naive discriminative model (NDL) provided in [pyndl](https://pyndl.readthedocs.io/en/latest/index.html). 
 
-In the modelling part, one usually wants to either (1) run a quick model with, for example, the default parameters; or (2) select good (or the 'best') paramters for the model in order to fit the data well. 
+The modelling tools allows you to either (1) run a quick model with, for example, the default parameters; or (2) search for good (or the 'best') parameters for the model in order to fit the data well. 
 
 ### Evaluation
 
