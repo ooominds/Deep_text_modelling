@@ -31,15 +31,15 @@ To be completed...
 
 ### Binary classification (predicting gender from name)
 
-To be completed...
+[Report](https://nbviewer.jupyter.org/github/Adnane017/Deep_text_modelling/blob/master/illustrative_examples/names/names.ipynb)
 
 ### Multiclass classification (predicting tense from context)
 
-To be completed...
+[Report]
 
 ### Multiclass multilabel classification (predicting words from orthographic cues)
 
-To be completed...
+[Report]
 
 ## Installation
 
