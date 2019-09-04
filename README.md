@@ -7,6 +7,14 @@ The main purpose of this package is to make the process of training language lea
 
 ## Key features
 
+The usual workflow for fitting a model to the data is:
+
+1) **Preprocessing**: Prepare the data for modelling (e.g. training/validation/test split).
+2) **Modelling**: Build a model for the data after selecting the model parameters to use.  
+3) **Evaluation**: Assess the selected model (e.g. test accuracy, comparing with behavioural data).
+
+The Deep text modelling (DTM) package provides tools to facilitate each of these steps.
+
 ### Preprocessing
 
 All the models contained in the package work with the same unified data format. Most of the transformations needed for the different types of models are done in the background, so the user can experiment with the models quickly and with a minimal amount of coding. More specifically, the data to model should have two columns and would look like this: 
@@ -23,7 +31,7 @@ the_surprise_total | PastSimple
 
 - Each row is called an **event** (i.e. a combination of a set of cues and a set of outcomes).
 
-Note that this 'cues-outcomes' or 'event' format, adopted from the associative learning literature, allows to model a wide range of language problems ranging from generating prerdictions for machine learning problems to explaning behavioural phenomenons (e.g., response time or participants' choices) as will be illustrated in the 'examples' section below. For standard calssification problems (e.g. deciding whether an email is a spam or non-spam), it is easy to get to the event format by replacing the spaces with underscores. For more complex cases like extracting events from a corpus (e.g. generating cues and outcomes from each sentence), you can use the excellent [pyndl](https://pyndl.readthedocs.io/en/latest/index.html) package.  
+Note that this 'cues-outcomes' or 'event' format, adopted from the associative learning literature, allows to model a wide range of language problems ranging from generating prerdictions for machine learning problems to explaning behavioural phenomenons (e.g., response time or participants' choices) as will be illustrated in the 'examples' section below. For standard calssification problems (e.g. deciding whether an email is a spam or non-spam), it is easy to get to the event format by replacing the spaces between the words with underscores. For more complex cases like extracting events from a corpus (e.g. generating cues and outcomes from each sentence), you can use the excellent [pyndl](https://pyndl.readthedocs.io/en/latest/index.html) package.  
 
 The preprocessing step will generally consists of:
 
@@ -35,7 +43,9 @@ In addition, the package makes it possible to work with dataframes loaded in the
 
 ### Modelling
 
-To be completed...
+The package provide functions to train feedforward neural networks and LSTMs based on Keras. Although, [Keras](https://keras.io/) is a simple framework to learn in comparison with the other major deep learning framworks, it is also a general-purpose package that was designed to work with different types of problems. By focusing on a specific type of problems (language learning and processing), we were able to create wrapper functions for training keras models that reduce the amount of coding and necessary learning. The package also offers tools for tunning the parameters and evaluating the naive discriminative model (NDL) provided in [pyndl](https://pyndl.readthedocs.io/en/latest/index.html). 
+
+In the modelling part, one usually wants to either (1) run a quick model with, for example, the default parameters; or (2) select good (or the 'best') paramters for the model in order to fit the data well. 
 
 ### Evaluation
 
@@ -63,7 +73,7 @@ All you need to start using the package is to copy the folder inside 'package' i
 - pandas
 - pyndl
 - keras
-- talos
+- talos (optional)
 
 ## Authors
 
