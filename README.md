@@ -51,10 +51,11 @@ All models can predict the probability of each possible outcome given a certain 
 
 ### Evaluation
 
-- learning curves
-- Precision, recall and F1 scores
-- Predictions on the test set
-- Top predicted outcomes
+DTM contains some useful functions for assessing your models. These include:
+
+- Plotting learning curves. These, basically, displays the performance of your model as a function of training time. Monitoring the training and validation learning curves is useful to detect when the model starts to overfit, and hence training needs to be stopped.  
+- Generating predictions from the model based on the test data, which can be then used to compute performance scores (e.g. accuracy or precision/recall) on the test data. 
+- Extracting the top predicted outcomes, or in other words, the outcomes corresponding to the top *N* predicted probabilities.
 
 ## Examples
 
@@ -79,7 +80,7 @@ All you need to start using the package is to copy the folder inside 'package' i
 - keras
 - pyndl
 
-In addition, for the evaluation stage, we highly recommend the use of these two packages (see the above examples for illustrations of their use):
+In addition, the following two packages are useful for the evaluation stage, as shown in the examples above:
 
 - talos (optional)
 - scikit-learn (optional)
