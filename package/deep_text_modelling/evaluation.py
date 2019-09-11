@@ -1,4 +1,5 @@
 import numpy as np
+import xarray
 from keras import backend as K
 import matplotlib.pyplot as plt
 
@@ -346,5 +347,112 @@ def plot_learning_curve(history_dict, metric = 'acc', set = 'train'):
         plt.legend()
         plt.show()
 
+def activations_to_proba(activations, T = 1):
 
+    """
+    convert activations to probabilities using softmax function
+
+    Parameters
+    ----------
+    activations: xarray.DataArray
+        matrix of activations 
+    T: float
+        temperature hyperparameter to adjust the confidence in the predictions from the activations.
+        Low values increase the confidence in the predictions. 
+
+    Returns
+    -------
+    numpy 2D-array
+        array of dim (num_events * num_outcomes), which contains, for each event, the probabilities 
+        of the different outcomes
+    """
+
+    e_acts = xarray.ufuncs.exp(activations - xarray.DataArray.max(activations))
+    softmax = e_acts / e_acts.sum(axis = 1)
+    return softmax.transpose()
+
+def activations_to_proba(activations, T = 1):
+
+    """
+    convert activations to probabilities using softmax function
+
+    Parameters
+    ----------
+    activations: xarray.DataArray
+        matrix of activations 
+    T: float
+        temperature hyperparameter to adjust the confidence in the predictions from the activations.
+        Low values increase the confidence in the predictions. 
+
+    Returns
+    -------
+    2D-DataArray
+        array of dim (num_events * num_outcomes), which contains, for each event, the probabilities 
+        of the different outcomes
+    """
+
+    e_acts = xarray.ufuncs.exp(activations - xarray.DataArray.max(activations))
+    softmax = e_acts / e_acts.sum(axis = 1)
+    return softmax.transpose()
+    # e_x = np.exp(x - np.max(x))
+    # return e_x / e_x.sum(axis=0) 
+
+def activations_to_predictions(activations):
+
+    """
+    convert activations to probabilities using softmax function
+
+    Parameters
+    ----------
+    activations: xarray.DataArray
+        matrix of activations of dim (num_events * num_outcomes)
+
+    Returns
+    -------
+    list
+        predicted outcomes for all events 
+    """
+
+    # Predicted tenses from the activations 
+    y_pred = []
+    for j in range(activations.shape[1]):
+        activation_col = activations[:, j]
+        argmax_j = activation_col.where(activation_col == activation_col.max(), drop=True).squeeze().coords['outcomes'].values.item()
+        y_pred.append(argmax_j)
+    return y_pred
+
+def predict_proba_evenfile_ndl(model, data_test, is_data_new = True, T = 1, num_threads = 1):
+
+    """ Generate predicted probabilities for NDL
+
+    Parameters
+    ----------
+    model: class
+        NDL model outputs (contains weights and activations)
+    data_test: dataframe or class
+        dataframe or indexed text file containing test data
+    T: float
+        temperature hyperparameter to adjust the confidence in the predictions from the activations.
+        Low values increase the confidence in the predictions. 
+    num_threads: int
+        maximum number of processes to use when computing the activations is the data is unseen. Default: 1
+
+    Returns
+    -------
+    numpy array
+        array containing the predicted probabilities 
+    """
+
+    from pyndl.activation import activation
+
+    # Generate the activations for the data if it is differnent from the training or validation data
+    activations_test = activation(events = data_test, 
+                                  weights = model.weights,
+                                  number_of_threads = num_threads,
+                                  remove_duplicates = True,
+                                  ignore_missing_cues = True)
+
+    # Predicted probabilities using softmax
+    proba_pred = activations_to_proba(activations = activations_test, T = T)
+    return proba_pred
  
