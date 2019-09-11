@@ -929,8 +929,7 @@ class NDL_model():
         #self.performance_hist = performance_hist
 
 def train_ndl(data_train, data_valid, cue_index, outcome_index, temp_dir,
-              data_type = 'gz', shuffle = False, num_threads = 1, verbose = 0,
-              metrics = ['accuracy'],
+              shuffle = False, num_threads = 1, verbose = 0, metrics = ['accuracy'],
               #metrics = ['accuracy', 'precision', 'recall', 'f1score'],
               params = {'epochs': 1, # number of iterations on the full set 
                         'lr': 0.0001}):
