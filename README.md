@@ -1,4 +1,4 @@
-# Deep text modelling
+# Deep text modelling (DTM)
 A Python package providing tools for processing and modelling text data
 
 ## Overview
