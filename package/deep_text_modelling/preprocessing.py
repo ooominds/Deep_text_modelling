@@ -1,10 +1,60 @@
 import gzip
 import csv
 import numpy as np
+import random
 from collections.abc import Iterable
 from collections import Counter
 from random import shuffle
 from keras.preprocessing.text import Tokenizer
+
+#######################################
+# Conversion between csv and gz formats
+#######################################
+
+def csv_to_gz(csv_infile, gz_outfile):
+
+    """Convert a csv containing events to a .gz file
+
+    Parameters
+    ----------
+    csv_infile: str
+        path of the csv file to convert
+    gz_outfile: str
+        path of the gz file  
+
+    Returns
+    -------
+    None 
+        save a .gz file
+    """
+
+    with gzip.open(gz_outfile, 'wt') as out:
+        for line in csv.reader(open(csv_infile, 'r')):
+            line = '\t'.join(line)+'\n'
+            out.write(line)
+
+def gz_to_csv(gz_infile, csv_outfile):
+
+    """Convert a gz file containing events to csv format
+
+    Parameters
+    ----------
+    gz_infile: str
+        path of the gz file to convert
+    csv_outfile: str
+        path of the csv file  
+
+    Returns
+    -------
+    None 
+        save a csv file
+    """
+
+    with open(csv_outfile, mode = 'w') as outfile:
+        with gzip.open(gz_infile, 'rt') as infile:
+            csv_writer = csv.writer(outfile, delimiter = ',', quotechar = '"', quoting = csv.QUOTE_MINIMAL)
+            for line in infile:
+                csv_writer.writerow(line.strip().split('\t'))
 
 ######################################
 # Use text file as an indexable object
@@ -27,7 +77,7 @@ class IndexedFile():
 
     Usage
     ----------
-    corpus_file = IndexedFile(CORPUS_path, 'gz)
+    corpus_file = IndexedFile(CORPUS_path, 'gz')
     len(corpus_file) # number of lines
     line = corpus_file[0]  # indexing
     lines = corpus_file[:5]  # slicing (first 5 lines)
@@ -423,15 +473,15 @@ def df_train_valid_test_split(data, train_data_path, valid_data_path,
     ### Prepare the train, valid and test sets and export them
     # train
     data_train = data.iloc[ind_train, ]
-    data_train.to_csv(train_data_path, sep = ',')
+    data_train.to_csv(train_data_path, sep = ',', index = False)
     del data_train 
     # valid
     data_valid = data.iloc[ind_valid, ]
-    data_valid.to_csv(valid_data_path, sep = ',')
+    data_valid.to_csv(valid_data_path, sep = ',', index = False)
     del data_valid
     # test
     data_test = data.iloc[ind_test, ]
-    data_test.to_csv(test_data_path, sep = ',')
+    data_test.to_csv(test_data_path, sep = ',', index = False)
     del data_test
 
     ### Wrap-up
@@ -483,6 +533,58 @@ def orthoCoding(sent, gram_size, remove_duplicates = False, randomize_order = Fa
 # Create epochs 
 ################
 
-def create_epochs():
-    pass
+def shuffle_textfile(infile_path, outfile_path):
+
+    """shuffle an event dataset that is stored as a gz file    
+
+    Parameters
+    ----------
+    infile_path: str
+        path to the event file to shuffle
+    outfile_path: str
+        path to the shuffled file
+
+    Returns
+    -------
+    None 
+        save a .gz file
+    """
+
+    with gzip.open(infile_path, 'rt', encoding = 'utf-8') as fr: 
+        with gzip.open(outfile_path , 'wt', encoding = 'utf-8') as fw:
+            lines = fr.readlines()
+            lines = [lines[0]] + random.shuffle(lines[1:]) # lines[0] is the heading     
+            fw.writelines(lines)
+
+def create_epochs_textfile(infile_path, outfile_path, epoch, shuffle = False):
+
+    """Generate epochs from a dataset of events that is stored as a gz file    
+
+    Parameters
+    ----------
+    infile_path: str
+        path to the event file to duplicate
+    outfile_path: str
+        path to the duplicatd file
+    epoch: int
+        number of epochs to generate
+    shuffle: Boolean
+        whether to shuffle the data after every epoch
+
+    Returns
+    -------
+    None 
+        save a .gz file
+    """
+
+    with gzip.open(infile_path, 'rt', encoding = 'utf-8') as fr: 
+        with gzip.open(outfile_path , 'wt', encoding = 'utf-8') as fw:
+            lines = fr.readlines()
+            lines_epoch = lines
+            if shuffle:
+                for j in range(1, epoch):
+                    lines_epoch = lines_epoch + random.shuffle(lines[1:])
+            else:
+                lines_epoch = [lines[0]] + (lines[1:] * epoch) # lines[0] is the heading          
+            fw.writelines(lines_epoch)
 
