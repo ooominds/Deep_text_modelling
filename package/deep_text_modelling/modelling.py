@@ -4,8 +4,11 @@ import csv
 import gc
 import sys
 import numpy as np
+import pandas as pd
 import random 
 import json
+import os
+import time
 
 import keras
 from keras.models import Sequential
@@ -15,6 +18,13 @@ from keras import activations
 from keras import losses
 from keras import metrics
 from keras import backend as K
+
+from pyndl.preprocess import filter_event_file
+from pyndl.count import cues_outcomes
+from pyndl.ndl import ndl
+from pyndl.activation import activation
+
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
 ### Import local packages
 from deep_text_modelling.evaluation import recall, precision, f1score
@@ -850,7 +860,7 @@ def grid_search_LSTM(data_train, data_valid, num_cues,
                                     cue_index = cue_index, 
                                     outcome_index = outcome_index, 
                                     max_len = max_len,
-                                    generator = generator
+                                    generator = generator,
                                     shuffle = shuffle, 
                                     use_cuda = use_cuda, 
                                     use_multiprocessing = use_multiprocessing, 
@@ -884,6 +894,213 @@ def grid_search_LSTM(data_train, data_valid, num_cues,
             del model, out
             gc.collect()
             K.clear_session()
+
+#####################################
+# Naive discriminative learning model
+#####################################
+
+class NDL_model():
+
+    """ Class that contains the training results after ndl training (weights, activations and performance measures)
+
+    Attributes
+    ----------
+    weights: xarray.DataArray
+        matrix of association weights
+    activations_train: xarray.DataArray
+        matrix of activations for the training data
+    activations_valid: xarray.DataArray
+        matrix of activations for the validation data
+
+    Returns
+    -------
+    class object
+
+    """
+
+    # performance_hist: dict
+    #     dictionary containing the performance scores in all epochs depending on the metrics that were used during training
+
+    def __init__(self, weights, activations_train, activations_valid):
+        'Initialization'
+        self.weights = weights
+        self.activations_train = activations_train
+        self.activations_valid = activations_valid
+        #self.performance_hist = performance_hist
+
+def train_ndl(data_train, data_valid, cue_index, outcome_index, temp_dir,
+              data_type = 'gz', shuffle = False, num_threads = 1, verbose = 0,
+              metrics = ['accuracy'],
+              #metrics = ['accuracy', 'precision', 'recall', 'f1score'],
+              params = {'epochs': 1, # number of iterations on the full set 
+                        'lr': 0.0001}):
+
+    """ Train a native discriminative learning model
+
+    Parameters
+    ----------
+    data_train: dataframe or str
+        dataframe or path to the file containing training data
+    data_valid: class or dataframe
+        dataframe or path to the file containing validation data
+    cue_index: dict
+        mapping from cues to indices
+    outcome_index: dict
+        mapping from outcomes to indices
+    temp_dir: str
+        directory where to store temporary files while training NDL
+    shuffle: Boolean
+        whether to shuffle the data after every epoch
+    use_multiprocessing: Boolean
+        whether to generate batches in parallel. Default: False
+    num_threads: int
+        maximum number of processes to use when training NDL. Default: 1
+    verbose: int (0, 1)
+        verbosity mode. 0 = silent, 1 = one line per epoch.
+    metrics: list
+        for now only ['accuracy'] is accepted
+    params: dict
+        model parameters:
+        'epochs'
+        'lr'
+
+    Returns
+    -------
+    tuple
+        fit history and NDL_model class object (stores the weight and activation matrices) 
+    """
+
+    from deep_text_modelling.evaluation import activations_to_predictions
+
+    ### Paths of the files
+    events_train_path = data_train
+    events_valid_path = data_valid
+    filtered_events_train_path = os.path.join(temp_dir, 'filtered_events_train.gz')  
+    filtered_events_valid_path = os.path.join(temp_dir, 'filtered_events_valid.gz')  
+
+    ### Filter the event files by retaining only the cues and outcomes that are in the index system (most frequent tokens)
+    cues_to_keep = [cue for cue in cue_index.keys()]
+    outcomes_to_keep = [outcome for outcome in outcome_index.keys()]
+    # Train set 
+    filter_event_file(events_train_path,
+                      filtered_events_train_path,
+                      number_of_processes = num_threads,
+                      keep_cues = cues_to_keep,
+                      keep_outcomes = outcomes_to_keep)
+    # Validation set
+    filter_event_file(events_valid_path,
+                      filtered_events_valid_path,
+                      number_of_processes = num_threads,
+                      keep_cues = cues_to_keep,
+                      keep_outcomes = outcomes_to_keep) 
+
+    # Initialise the weight matrix
+    weights = None
+
+    # Initialise the lists where we will store the performance scores in each epoch for the different metrics
+    # train
+    acc_hist = []
+    # precision_hist = []
+    # recall_hist = []
+    # f1score_hist = []
+
+    # valid
+    val_acc_hist = []
+    # val_precision_hist = []
+    # val_recall_hist = []
+    # val_f1score_hist = []
+    
+    # Train NDL for the chosen number of epochs. Each time save and print the metric scores
+    for j in range(1, (1+params['epochs'])):
+
+        # Record start time
+        start = time.time()
+
+        # Train ndl to get the weight matrix 
+        weights = ndl(events = filtered_events_train_path,
+                      alpha = params['lr'], 
+                      betas = (1, 1),
+                      method = "openmp",
+                      weights = weights,
+                      number_of_threads = num_threads,
+                      remove_duplicates = True,
+                      temporary_directory = temp_dir,
+                      verbose = False)
+
+        # Compute the activation matrix on the training set
+        activations_train = activation(events = filtered_events_train_path, 
+                                       weights = weights,
+                                       number_of_threads = num_threads,
+                                       remove_duplicates = True,
+                                       ignore_missing_cues = True)
+
+        # Compute the activation matrix on the validation set
+        activations_valid = activation(events = filtered_events_valid_path, 
+                                       weights = weights,
+                                       number_of_threads = num_threads,
+                                       remove_duplicates = True,
+                                       ignore_missing_cues = True)
+
+        # Predicted outcomes from the activations
+        y_train_pred = activations_to_predictions(activations_train) 
+        y_valid_pred = activations_to_predictions(activations_valid)
+
+        ### True outcomes 
+        # tain set 
+        events_train_df = pd.read_csv(filtered_events_train_path, header = 0, sep='\t', quotechar='"')
+        y_train_true = events_train_df['outcomes'].tolist()    
+        # validation set 
+        events_valid_df = pd.read_csv(filtered_events_valid_path, header = 0, sep='\t', quotechar='"')
+        y_valid_true = events_valid_df['outcomes'].tolist()
+        
+        # Compute performance scores for the different metrics
+        # accuracy
+        acc_j = accuracy_score(y_train_true, y_train_pred)
+        acc_hist.append(acc_j)
+        val_acc_j = accuracy_score(y_valid_true, y_valid_pred)
+        val_acc_hist.append(val_acc_j)
+
+        # # precision
+        # precision_j = precision_score(y_train_true, y_train_pred)
+        # precision_hist.append(precision_j)
+        # val_precision_j = precision_score(y_valid_true, y_valid_pred)
+        # val_precision_hist.append(val_precision_j)
+
+        # # recall
+        # recall_j = recall_score(y_train_true, y_train_pred)
+        # recall_hist.append(recall_j)
+        # val_recall_j = recall_score(y_valid_true, y_valid_pred)
+        # val_recall_hist.append(val_recall_j)
+
+        # # F1-score
+        # f1score_j = f1_score(y_train_true, y_train_pred)
+        # f1score_hist.append(f1score_j)
+        # val_f1score_j = f1_score(y_valid_true, y_valid_pred)
+        # val_f1score_hist.append(val_f1score_j)  
+
+        # Display progress message  
+        if verbose == 1:
+            now = time.time()
+            sys.stdout.write('Epoch %d/%d\n' % (j, params['epochs']))
+            sys.stdout.write(' - %.0fs - acc: %.4f - val_acc: %.4f\n' % ((now - start), acc_j, val_acc_j))
+            sys.stdout.flush()
+
+    ### Model object
+    model = NDL_model(weights, activations_train, activations_valid)
+
+    ### Fit history object
+    hist = {'acc': acc_hist,
+            # 'precision': precision_hist,
+            # 'recall': recall_hist,
+            # 'f1score': f1score_hist,
+            'val_acc': val_acc_hist
+            # 'val_precision': val_precision_hist,
+            # 'val_recall': val_recall_hist,
+            # 'val_f1score': val_f1score_hist
+            }
+
+    
+    return hist, model
 
 ##################################
 # Saving and loading keras objects
