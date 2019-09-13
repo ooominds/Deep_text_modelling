@@ -921,14 +921,15 @@ class NDL_model():
     # performance_hist: dict
     #     dictionary containing the performance scores in all epochs depending on the metrics that were used during training
 
-    def __init__(self, weights, activations_train, activations_valid):
+    #def __init__(self, weights, activations_train, activations_valid):
+    def __init__(self, weights):
         'Initialization'
         self.weights = weights
-        self.activations_train = activations_train
-        self.activations_valid = activations_valid
+        # self.activations_train = activations_train
+        # self.activations_valid = activations_valid
         #self.performance_hist = performance_hist
 
-def train_ndl(data_train, data_valid, cue_index, outcome_index, temp_dir,
+def train_ndl(data_train, data_valid, cue_index, outcome_index, temp_dir, chunksize,
               shuffle = False, num_threads = 1, verbose = 0, metrics = ['accuracy'],
               #metrics = ['accuracy', 'precision', 'recall', 'f1score'],
               params = {'epochs': 1, # number of iterations on the full set 
@@ -948,6 +949,9 @@ def train_ndl(data_train, data_valid, cue_index, outcome_index, temp_dir,
         mapping from outcomes to indices
     temp_dir: str
         directory where to store temporary files while training NDL
+    chunksize : int
+        Number of lines to use for computing the accuracy. This is done through 
+        the computation of the activation matrix for these lines. 
     shuffle: Boolean
         whether to shuffle the data after every epoch
     use_multiprocessing: Boolean
@@ -969,7 +973,7 @@ def train_ndl(data_train, data_valid, cue_index, outcome_index, temp_dir,
         fit history and NDL_model class object (stores the weight and activation matrices) 
     """
 
-    from deep_text_modelling.evaluation import activations_to_predictions
+    from deep_text_modelling.evaluation import activations_to_predictions, predict_outcomes_NDL
 
     ### Paths of the files
     events_train_path = data_train
@@ -1026,23 +1030,33 @@ def train_ndl(data_train, data_valid, cue_index, outcome_index, temp_dir,
                       temporary_directory = temp_dir,
                       verbose = False)
 
-        # Compute the activation matrix on the training set
-        activations_train = activation(events = filtered_events_train_path, 
-                                       weights = weights,
-                                       number_of_threads = num_threads,
-                                       remove_duplicates = True,
-                                       ignore_missing_cues = True)
+        # # Compute the activation matrix on the training set
+        # activations_train = activation(events = filtered_events_train_path, 
+        #                                weights = weights,
+        #                                number_of_threads = num_threads,
+        #                                remove_duplicates = True,
+        #                                ignore_missing_cues = True)
 
-        # Compute the activation matrix on the validation set
-        activations_valid = activation(events = filtered_events_valid_path, 
-                                       weights = weights,
-                                       number_of_threads = num_threads,
-                                       remove_duplicates = True,
-                                       ignore_missing_cues = True)
+        # # Compute the activation matrix on the validation set
+        # activations_valid = activation(events = filtered_events_valid_path, 
+        #                                weights = weights,
+        #                                number_of_threads = num_threads,
+        #                                remove_duplicates = True,
+        #                                ignore_missing_cues = True)
+
+        # # Predicted outcomes from the activations
+        # y_train_pred = activations_to_predictions(activations_train) 
+        # y_valid_pred = activations_to_predictions(activations_valid)
 
         # Predicted outcomes from the activations
-        y_train_pred = activations_to_predictions(activations_train) 
-        y_valid_pred = activations_to_predictions(activations_valid)
+        y_train_pred = predict_outcomes_NDL(events_path = filtered_events_train_path, 
+                                            weights = weights, 
+                                            chunksize = chunksize, 
+                                            num_threads = num_threads)
+        y_valid_pred = predict_outcomes_NDL(events_path = filtered_events_valid_path, 
+                                            weights = weights, 
+                                            chunksize = chunksize, 
+                                            num_threads = num_threads)
 
         ### True outcomes 
         # tain set 
@@ -1085,7 +1099,7 @@ def train_ndl(data_train, data_valid, cue_index, outcome_index, temp_dir,
             sys.stdout.flush()
 
     ### Model object
-    model = NDL_model(weights, activations_train, activations_valid)
+    model = NDL_model(weights)
 
     ### Fit history object
     hist = {'acc': acc_hist,

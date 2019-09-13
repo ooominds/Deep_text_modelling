@@ -2,6 +2,8 @@ import numpy as np
 import xarray
 from keras import backend as K
 import matplotlib.pyplot as plt
+from itertools import islice
+from pyndl import io
 
 def score_given_metric(y_true, y_pred, metric):
 
@@ -394,8 +396,6 @@ def activations_to_proba(activations, T = 1):
     e_acts = xarray.ufuncs.exp(activations - xarray.DataArray.max(activations))
     softmax = e_acts / e_acts.sum(axis = 1)
     return softmax.transpose()
-    # e_x = np.exp(x - np.max(x))
-    # return e_x / e_x.sum(axis=0) 
 
 def activations_to_predictions(activations):
 
@@ -421,7 +421,33 @@ def activations_to_predictions(activations):
         y_pred.append(argmax_j)
     return y_pred
 
-def predict_proba_evenfile_ndl(model, data_test, is_data_new = True, T = 1, num_threads = 1):
+def chunk(iterable, chunksize):
+    
+    """Returns lazy iterator that yields chunks from iterable.
+    """
+
+    iterator = iter(iterable)
+    return iter(lambda: list(islice(iterator, chunksize)), [])
+
+def predict_outcomes_NDL(events_path, weights, chunksize, num_threads = 1):
+
+    """compute outcome predictions by going through the corpus in chunks for memory efficiency"""
+
+    from pyndl.activation import activation
+
+    y_pred = []
+    events = io.events_from_file(events_path)
+    for events_chunk in chunk(events, chunksize):
+        activations = activation(events = events_chunk, 
+                                 weights = weights,
+                                 number_of_threads = num_threads,
+                                 remove_duplicates = True,
+                                 ignore_missing_cues = True)
+        # Predicted outcomes from the activations
+        y_pred.extend(activations_to_predictions(activations)) 
+    return y_pred
+
+def predict_proba_evenfile_NDL(model, data_test, is_data_new = True, T = 1, num_threads = 1):
 
     """ Generate predicted probabilities for NDL
 
