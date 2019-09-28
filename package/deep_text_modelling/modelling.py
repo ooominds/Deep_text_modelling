@@ -12,7 +12,7 @@ import time
 import h5py
 
 import keras
-from keras.models import Sequential
+from keras.models import Sequential, load_model
 from keras.layers import Dropout, Dense, LSTM, CuDNNLSTM
 from keras import optimizers
 from keras import activations
@@ -1137,55 +1137,14 @@ def train_NDL(data_train, data_valid, cue_index, outcome_index, temp_dir, chunks
 # Saving and loading model objects
 ##################################
 
-def save_keras_history(history, path):
+def export_model(model, path):
 
-    """ Save a keras training history 
-
-    Parameters
-    ----------
-    history: class
-        keras history object
-    path: str
-        path where to save the file
-
-    Returns
-    -------
-    None
-        export a dictionary as a json file
-    """
-
-    # Get the history dictionary containing the performance scores (loss and other metrics) for each epoch
-    history_dict = history.history
-
-    # Save it as a json file
-    json.dump(history_dict, open(path, 'w'))
-
-def load_keras_history(path):
-
-    """ Load a keras training history as a dictionary 
-
-    Parameters
-    ----------
-    path: str
-        path where to save the file
-
-    Returns
-    -------
-    dict
-        history dictionary containing the performance scores (loss and other metrics) for each epoch
-    """
-
-    history_dict = json.load(open(path, 'r'))
-    return history_dict
-
-def save_ndl_model(model, path):
-
-    """ Save an NDL model object
+    """ Save a model object to disk
 
     Parameters
     ----------
     model: class
-        NDL model class object
+        model class object (e.g. keras or NDL)
     path: str
         path where to save the file
 
@@ -1195,45 +1154,52 @@ def save_ndl_model(model, path):
         export the class as an hdf5 file
     """
 
-    # isinstance(NDL_model, NDLmodel)
+    # Save model as an hdf5 file
+    if isinstance(model, NDLmodel):     
+        with h5py.File(path, 'w') as f:
+            for item in vars(model).items():
+                f.create_dataset(item[0], data = item[1])
+    elif isinstance(model, Sequential):
+        model.save(path)
+    else: 
+        raise ValueError("model should be a keras (Sequential class) or ndl (NDLmodel class) model")
 
-    # Save it as an hdf5 file
-    with h5py.File(path, 'w') as f:
-        for item in vars(model).items():
-            f.create_dataset(item[0], data = item[1])
+def import_model(path, custom_measures = None):
 
-def load_ndl_model(path):
-
-    """ Load an NDL model object from an hdf5 file
+    """ Load a model object from disk. The model should be saved in an hdf5 file
 
     Parameters
     ----------
     path: str
         path where the file is saved
+    custom_measures: 
+        optional dictionary that maps names (strings) to custom performance measures like precision and recall.
 
     Returns
     -------
     class object
-        NDL model object
+        either a keras or NDL model object
     """
 
-    model = NDLmodel(weights = 0)
-
-    # Load the hdf5 file
     with h5py.File(path, 'r') as f:
-        for key in f.keys():
-            setattr(model, key, f[key].value)
-
+        if 'model_weights' in f.keys(): # => keras object
+            model = load_model(path, custom_objects = custom_measures)
+        elif 'weights' in f.keys(): # => NDLmodel object
+            model = NDLmodel(weights = 0)
+            for key in f.keys():
+                setattr(model, key, f[key].value)
+        else:
+            raise ValueError("Stored model should be a keras (Sequential class) or ndl (NDLmodel class) model")
     return model
 
-def save_ndl_history(history_dict, path):
+def export_history(history_dict, path):
 
-    """ Save an NDL training history 
+    """ Save an NDL or keras training history 
 
     Parameters
     ----------
     history_dict: dict
-        NDL training history stored as a dictionary, and which contains the performance scores (loss and other metrics) for each epoch
+        training history stored as a dictionary, and which contains the performance scores (loss and other metrics) for each epoch
     path: str
         path where to save the file
 
@@ -1246,14 +1212,14 @@ def save_ndl_history(history_dict, path):
     # Save it as a json file
     json.dump(history_dict, open(path, 'w'))
 
-def load_ndl_history(path):
+def import_history(path):
 
-    """ Load an NDL training history as a dictionary 
+    """ Load an NDL or keras training history as a dictionary 
 
     Parameters
     ----------
     path: str
-        path where to save the file
+        path where the file is saved
 
     Returns
     -------
@@ -1263,3 +1229,130 @@ def load_ndl_history(path):
 
     history_dict = json.load(open(path, 'r'))
     return history_dict
+
+# def save_keras_history(history, path):
+
+#     """ Save a keras training history 
+
+#     Parameters
+#     ----------
+#     history: class
+#         keras history object
+#     path: str
+#         path where to save the file
+
+#     Returns
+#     -------
+#     None
+#         export a dictionary as a json file
+#     """
+
+#     # Get the history dictionary containing the performance scores (loss and other metrics) for each epoch
+#     history_dict = history.history
+
+#     # Save it as a json file
+#     json.dump(history_dict, open(path, 'w'))
+
+# def load_keras_history(path):
+
+#     """ Load a keras training history as a dictionary 
+
+#     Parameters
+#     ----------
+#     path: str
+#         path where to save the file
+
+#     Returns
+#     -------
+#     dict
+#         history dictionary containing the performance scores (loss and other metrics) for each epoch
+#     """
+
+#     history_dict = json.load(open(path, 'r'))
+#     return history_dict
+
+# def save_ndl_model(model, path):
+
+#     """ Save an NDL model object
+
+#     Parameters
+#     ----------
+#     model: class
+#         NDL model class object
+#     path: str
+#         path where to save the file
+
+#     Returns
+#     -------
+#     None
+#         export the class as an hdf5 file
+#     """
+
+#     # isinstance(NDL_model, NDLmodel)
+
+#     # Save it as an hdf5 file
+#     with h5py.File(path, 'w') as f:
+#         for item in vars(model).items():
+#             f.create_dataset(item[0], data = item[1])
+
+# def load_ndl_model(path):
+
+#     """ Load an NDL model object from an hdf5 file
+
+#     Parameters
+#     ----------
+#     path: str
+#         path where the file is saved
+
+#     Returns
+#     -------
+#     class object
+#         NDL model object
+#     """
+
+#     model = NDLmodel(weights = 0)
+
+#     # Load the hdf5 file
+#     with h5py.File(path, 'r') as f:
+#         for key in f.keys():
+#             setattr(model, key, f[key].value)
+
+#     return model
+
+# def save_ndl_history(history_dict, path):
+
+#     """ Save an NDL training history 
+
+#     Parameters
+#     ----------
+#     history_dict: dict
+#         NDL training history stored as a dictionary, and which contains the performance scores (loss and other metrics) for each epoch
+#     path: str
+#         path where to save the file
+
+#     Returns
+#     -------
+#     None
+#         export a dictionary as a json file
+#     """
+
+#     # Save it as a json file
+#     json.dump(history_dict, open(path, 'w'))
+
+# def load_ndl_history(path):
+
+#     """ Load an NDL training history as a dictionary 
+
+#     Parameters
+#     ----------
+#     path: str
+#         path where to save the file
+
+#     Returns
+#     -------
+#     dict
+#         history dictionary containing the performance scores (loss and other metrics) for each epoch
+#     """
+
+#     history_dict = json.load(open(path, 'r'))
+#     return history_dict
