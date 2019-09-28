@@ -9,6 +9,7 @@ import random
 import json
 import os
 import time
+import h5py
 
 import keras
 from keras.models import Sequential
@@ -899,7 +900,7 @@ def grid_search_LSTM(data_train, data_valid, num_cues,
 # Naive discriminative learning model
 #####################################
 
-class NDL_model():
+class NDLmodel():
 
     """ Class that contains the training results after ndl training (weights, activations and performance measures)
 
@@ -929,7 +930,7 @@ class NDL_model():
         # self.activations_valid = activations_valid
         #self.performance_hist = performance_hist
 
-def train_ndl(data_train, data_valid, cue_index, outcome_index, temp_dir, chunksize,
+def train_NDL(data_train, data_valid, cue_index, outcome_index, temp_dir, chunksize,
               shuffle = False, num_threads = 1, verbose = 0, metrics = ['accuracy'],
               #metrics = ['accuracy', 'precision', 'recall', 'f1score'],
               params = {'epochs': 1, # number of iterations on the full set 
@@ -974,10 +975,27 @@ def train_ndl(data_train, data_valid, cue_index, outcome_index, temp_dir, chunks
     """
 
     from deep_text_modelling.evaluation import activations_to_predictions, predict_outcomes_NDL
+    from deep_text_modelling.preprocessing import df_to_gz
 
-    ### Paths of the files
-    events_train_path = data_train
-    events_valid_path = data_valid
+    ### Path to the train event file
+    if isinstance(data_train, str):     
+        events_train_path = data_train
+    elif isinstance(data_train, pd.DataFrame):
+        events_train_path = os.path.join(temp_dir, 'unfiltered_events_train.gz')
+        df_to_gz(data = data_train, gz_outfile = events_train_path)
+    else:
+        raise ValueError("data_train should be either a path or a dataframe")
+
+    ### Path to the validation event file
+    if isinstance(data_valid, str):     
+        events_valid_path = data_valid
+    elif isinstance(data_valid, pd.DataFrame):
+        events_valid_path = os.path.join(temp_dir, 'unfiltered_events_valid.gz')
+        df_to_gz(data = data_valid, gz_outfile = events_valid_path)
+    else:
+        raise ValueError("data_valid should be either a path or a dataframe")
+
+    ### Paths to the filtered files
     filtered_events_train_path = os.path.join(temp_dir, 'filtered_events_train.gz')  
     filtered_events_valid_path = os.path.join(temp_dir, 'filtered_events_valid.gz')  
 
@@ -1099,7 +1117,7 @@ def train_ndl(data_train, data_valid, cue_index, outcome_index, temp_dir, chunks
             sys.stdout.flush()
 
     ### Model object
-    model = NDL_model(weights)
+    model = NDLmodel(weights)
 
     ### Fit history object
     hist = {'acc': acc_hist,
@@ -1116,12 +1134,12 @@ def train_ndl(data_train, data_valid, cue_index, outcome_index, temp_dir, chunks
     return hist, model
 
 ##################################
-# Saving and loading keras objects
+# Saving and loading model objects
 ##################################
 
-def save_history(history, path):
+def save_keras_history(history, path):
 
-    """ Save a keras training history as a dictionary 
+    """ Save a keras training history 
 
     Parameters
     ----------
@@ -1142,14 +1160,98 @@ def save_history(history, path):
     # Save it as a json file
     json.dump(history_dict, open(path, 'w'))
 
-def load_history(path):
+def load_keras_history(path):
 
-    """ Save a keras training history as a dictionary 
+    """ Load a keras training history as a dictionary 
 
     Parameters
     ----------
-    history: class
-        keras history object
+    path: str
+        path where to save the file
+
+    Returns
+    -------
+    dict
+        history dictionary containing the performance scores (loss and other metrics) for each epoch
+    """
+
+    history_dict = json.load(open(path, 'r'))
+    return history_dict
+
+def save_ndl_model(model, path):
+
+    """ Save an NDL model object
+
+    Parameters
+    ----------
+    model: class
+        NDL model class object
+    path: str
+        path where to save the file
+
+    Returns
+    -------
+    None
+        export the class as an hdf5 file
+    """
+
+    # isinstance(NDL_model, NDLmodel)
+
+    # Save it as an hdf5 file
+    with h5py.File(path, 'w') as f:
+        for item in vars(model).items():
+            f.create_dataset(item[0], data = item[1])
+
+def load_ndl_model(path):
+
+    """ Load an NDL model object from an hdf5 file
+
+    Parameters
+    ----------
+    path: str
+        path where the file is saved
+
+    Returns
+    -------
+    class object
+        NDL model object
+    """
+
+    model = NDLmodel(weights = 0)
+
+    # Load the hdf5 file
+    with h5py.File(path, 'r') as f:
+        for key in f.keys():
+            setattr(model, key, f[key].value)
+
+    return model
+
+def save_ndl_history(history_dict, path):
+
+    """ Save an NDL training history 
+
+    Parameters
+    ----------
+    history_dict: dict
+        NDL training history stored as a dictionary, and which contains the performance scores (loss and other metrics) for each epoch
+    path: str
+        path where to save the file
+
+    Returns
+    -------
+    None
+        export a dictionary as a json file
+    """
+
+    # Save it as a json file
+    json.dump(history_dict, open(path, 'w'))
+
+def load_ndl_history(path):
+
+    """ Load an NDL training history as a dictionary 
+
+    Parameters
+    ----------
     path: str
         path where to save the file
 
