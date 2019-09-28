@@ -250,8 +250,7 @@ class generator_df_FNN(keras.utils.Sequence):
         # Generate data
         return X, Y
 
-def train_FNN(data_train, data_valid, num_cues, 
-              num_outcomes, cue_index, outcome_index, 
+def train_FNN(data_train, data_valid, cue_index, outcome_index, 
               generator = generator_textfile_FNN, shuffle = False, 
               use_multiprocessing = False, num_threads = 0, verbose = 0,
               metrics = ['accuracy', precision, recall, f1score],
@@ -274,14 +273,10 @@ def train_FNN(data_train, data_valid, num_cues,
         dataframe or indexed text file containing training data
     data_valid: class or dataframe
         dataframe or indexed text file containing validation data
-    num_cues: int
-        number of allowed cues
-    num_outcomes: int
-        number of allowed outcomes
     cue_index: dict
-        mapping from cues to indices
+        mapping from cues to indices. The dictionary should include only the cues to keep in the data
     outcome_index: dict
-        mapping from outcomes to indices
+        mapping from outcomes to indices. The dictionary should include only the outcomes to keep in the data
     generator: class
         use 'generator = generator_df_FNN' if the data is given as a dataframe or 
         'generator = generator_textfile_FNN' if the data is given as an indexed file 
@@ -312,6 +307,10 @@ def train_FNN(data_train, data_valid, num_cues,
     tuple
         keras fit history and model objects  
     """
+
+    ### Extract number of cues and outcomes from the index systems
+    num_cues = len(cue_index)
+    num_outcomes = len(outcome_index)
 
     ### Initiate the generators for the train, valid and test data
     train_gen = generator(data = data_train, 
@@ -379,8 +378,7 @@ def train_FNN(data_train, data_valid, num_cues,
     
     return out, model
 
-def grid_search_FNN(data_train, data_valid, num_cues, 
-                    num_outcomes, cue_index, outcome_index, 
+def grid_search_FNN(data_train, data_valid, cue_index, outcome_index, 
                     generator, params, prop_grid, tuning_output_file,         
                     shuffle = False, use_multiprocessing = False, 
                     num_threads = 0, verbose = 0):
@@ -393,14 +391,10 @@ def grid_search_FNN(data_train, data_valid, num_cues,
         dataframe or indexed text file containing training data
     data_valid: class or dataframe
         dataframe or indexed text file containing validation data
-    num_cues: int
-        number of allowed cues
-    num_outcomes: int
-        number of allowed outcomes
     cue_index: dict
-        mapping from cues to indices
+        mapping from cues to indices. The dictionary should include only the cues to keep in the data
     outcome_index: dict
-        mapping from outcomes to indices
+        mapping from outcomes to indices. The dictionary should include only the outcomes to keep in the data
     generator: class
         use 'generator = generator_df_FNN' if the data is given as a dataframe or 
         'generator = generator_textfile_FNN' if the data is given as an indexed file 
@@ -462,8 +456,6 @@ def grid_search_FNN(data_train, data_valid, num_cues,
             # Fit the model given the current param combination
             out, model = train_FNN(data_train = data_train, 
                                    data_valid = data_valid, 
-                                   num_cues = num_cues, 
-                                   num_outcomes = num_outcomes, 
                                    cue_index = cue_index, 
                                    outcome_index = outcome_index, 
                                    generator = generator, 
@@ -655,8 +647,7 @@ class generator_df_LSTM(keras.utils.Sequence):
         # Generate data
         return X, Y
 
-def train_LSTM(data_train, data_valid, num_cues, 
-               num_outcomes, cue_index, outcome_index, max_len, 
+def train_LSTM(data_train, data_valid, cue_index, outcome_index, max_len, 
                generator = generator_textfile_LSTM, shuffle = False, 
                use_cuda = False, use_multiprocessing = False, 
                num_threads = 0, verbose = 0,
@@ -678,14 +669,10 @@ def train_LSTM(data_train, data_valid, num_cues,
         dataframe or indexed text file containing training data
     data_valid: class or dataframe
         dataframe or indexed text file containing validation data
-    num_cues: int
-        number of allowed cues
-    num_outcomes: int
-        number of allowed outcomes
     cue_index: dict
-        mapping from cues to indices
+        mapping from cues to indices. The dictionary should include only the cues to keep in the data
     outcome_index: dict
-        mapping from outcomes to indices
+        mapping from outcomes to indices. The dictionary should include only the outcomes to keep in the data
     max_len: int
         Consider only 'max_len' first tokens in a sequence
     generator: class
@@ -719,6 +706,10 @@ def train_LSTM(data_train, data_valid, num_cues,
     tuple
         keras fit history and model objects  
     """
+
+    ### Extract number of cues and outcomes from the index systems
+    num_cues = len(cue_index)
+    num_outcomes = len(outcome_index)
 
     ### Initiate the generators for the train, valid and test data
     train_gen = generator(data = data_train, 
@@ -770,8 +761,7 @@ def train_LSTM(data_train, data_valid, num_cues,
     
     return out, model
  
-def grid_search_LSTM(data_train, data_valid, num_cues, 
-                     num_outcomes, cue_index, outcome_index, max_len,
+def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
                      generator, params, prop_grid, tuning_output_file, 
                      shuffle = False, use_cuda = False, 
                      use_multiprocessing = False, num_threads = 0, verbose = 0):
@@ -784,14 +774,10 @@ def grid_search_LSTM(data_train, data_valid, num_cues,
         dataframe or indexed text file containing training data
     data_valid: class or dataframe
         dataframe or indexed text file containing validation data
-    num_cues: int
-        number of allowed cues
-    num_outcomes: int
-        number of allowed outcomes
     cue_index: dict
-        mapping from cues to indices
+        mapping from cues to indices. The dictionary should include only the cues to keep in the data
     outcome_index: dict
-        mapping from outcomes to indices
+        mapping from outcomes to indices. The dictionary should include only the outcomes to keep in the data
     max_len: int
         Consider only 'max_len' first tokens in a sequence
     generator: class
@@ -856,8 +842,6 @@ def grid_search_LSTM(data_train, data_valid, num_cues,
             # Fit the model given the current param combination
             out, model = train_LSTM(data_train = data_train, 
                                     data_valid = data_valid, 
-                                    num_cues = num_cues, 
-                                    num_outcomes = num_outcomes, 
                                     cue_index = cue_index, 
                                     outcome_index = outcome_index, 
                                     max_len = max_len,
@@ -945,9 +929,9 @@ def train_NDL(data_train, data_valid, cue_index, outcome_index, temp_dir, chunks
     data_valid: class or dataframe
         dataframe or path to the file containing validation data
     cue_index: dict
-        mapping from cues to indices
+        mapping from cues to indices. The dictionary should include only the cues to keep in the data
     outcome_index: dict
-        mapping from outcomes to indices
+        mapping from outcomes to indices. The dictionary should include only the outcomes to keep in the data
     temp_dir: str
         directory where to store temporary files while training NDL
     chunksize : int
