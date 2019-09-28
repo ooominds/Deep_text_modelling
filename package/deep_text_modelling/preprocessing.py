@@ -11,6 +11,26 @@ from keras.preprocessing.text import Tokenizer
 # Conversion between csv and gz formats
 #######################################
 
+def df_to_gz(data, gz_outfile):
+
+    """Export a dataframe containing events to a .gz file
+
+    Parameters
+    ----------
+    data: dataframe
+        dataframe to export to a gz file
+    gz_outfile: str
+        path of the gz file  
+
+    Returns
+    -------
+    None 
+        save a .gz file
+    """
+
+    with gzip.open(gz_outfile, 'wt', encoding='utf-8') as out:
+        data.to_csv(out, sep = '\t', index = False)
+
 def csv_to_gz(csv_infile, gz_outfile):
 
     """Convert a csv containing events to a .gz file
