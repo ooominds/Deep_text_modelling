@@ -79,11 +79,8 @@ All you need to start using the package is to copy the folder inside 'package' i
 - pandas
 - keras
 - pyndl
-
-In addition, the following two packages are useful for the evaluation stage, as shown in the examples above:
-
+- scikit-learn 
 - talos (optional)
-- scikit-learn (optional)
 
 ## Author
 
