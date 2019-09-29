@@ -44,6 +44,9 @@ def recall(y_true, y_pred):
     -------
     Keras tensor
         recall performance
+    Note
+    ----
+    The recall measure is calculated globally by counting the total true positives (corresponds to average = 'micro' in sklearn)
     """
 
     true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
@@ -66,6 +69,9 @@ def precision(y_true, y_pred):
     -------
     Keras tensor
         precision performance
+    Note
+    ----
+    The precision measure is calculated globally by counting the total true and predicted positives (corresponds to average = 'micro' in sklearn)
     """
 
     true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
@@ -88,6 +94,9 @@ def f1score(y_true, y_pred):
     -------
     Keras tensor
         F1-score 
+    Note
+    ----
+    The F1 measure is calculated globally by counting the total true and predicted positives (corresponds to average = 'micro' in sklearn)
     """
 
     pr = precision(y_true, y_pred)
@@ -126,7 +135,7 @@ def predict_proba_eventfile_FNN(model, data_test, num_cues, num_outcomes, cue_in
 
     Returns
     -------
-    numpy 1d-array
+    numpy array
         array containing the predicted probabilities
     """
 
@@ -209,7 +218,7 @@ def predict_proba_eventfile_LSTM(model, data_test, num_cues, num_outcomes, cue_i
 
     Returns
     -------
-    numpy 1d-array
+    numpy array
         array containing the predicted probabilities
     """
 
@@ -275,7 +284,7 @@ def top_predicted_outcomes(proba_pred, index_to_outcome_dict, N_top = 3):
     Returns
     -------
     dict
-        top outcomes
+        top outcomes along with their probability of occurrences
     """
 
     # extract the indices of the top 'N_top' outcomes 
@@ -365,30 +374,6 @@ def activations_to_proba(activations, T = 1):
     Returns
     -------
     numpy 2D-array
-        array of dim (num_events * num_outcomes), which contains, for each event, the probabilities 
-        of the different outcomes
-    """
-
-    e_acts = xarray.ufuncs.exp(activations - xarray.DataArray.max(activations))
-    softmax = e_acts / e_acts.sum(axis = 1)
-    return softmax.transpose()
-
-def activations_to_proba(activations, T = 1):
-
-    """
-    convert activations to probabilities using softmax function
-
-    Parameters
-    ----------
-    activations: xarray.DataArray
-        matrix of activations 
-    T: float
-        temperature hyperparameter to adjust the confidence in the predictions from the activations.
-        Low values increase the confidence in the predictions. 
-
-    Returns
-    -------
-    2D-DataArray
         array of dim (num_events * num_outcomes), which contains, for each event, the probabilities 
         of the different outcomes
     """
