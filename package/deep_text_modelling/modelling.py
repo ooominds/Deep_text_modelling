@@ -1152,15 +1152,7 @@ def grid_search_NDL(data_train, data_valid, cue_index, outcome_index,
     params: dict of lists
         model parameters:
         'epochs'
-        'batch_size'
-        'hidden_layers'
-        'hidden_neuron'
         'lr'
-        'dropout'
-        'optimizer'
-        'losses'
-        'activation'
-        'last_activation'
     prop_grid: float
         proportion of the grid combinations to sample 
     tuning_output_file: str
