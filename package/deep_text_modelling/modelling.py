@@ -459,9 +459,9 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
                                    cue_index = cue_index, 
                                    outcome_index = outcome_index, 
                                    generator = generator, 
-                                   shuffle = False, 
-                                   use_multiprocessing = False, 
-                                   num_threads = 0, 
+                                   shuffle = shuffle, 
+                                   use_multiprocessing = use_multiprocessing, 
+                                   num_threads = num_threads, 
                                    verbose = verbose,
                                    metrics = ['accuracy', precision, recall, f1score],
                                    params = param_comb)
@@ -915,8 +915,8 @@ class NDLmodel():
         #self.performance_hist = performance_hist
 
 def train_NDL(data_train, data_valid, cue_index, outcome_index, temp_dir, chunksize,
-              shuffle = False, num_threads = 1, verbose = 0, metrics = ['accuracy'],
-              #metrics = ['accuracy', 'precision', 'recall', 'f1score'],
+              shuffle = False, num_threads = 1, verbose = 0, 
+              metrics = ['accuracy', 'precision', 'recall', 'f1score'], metric_average = 'macro',
               params = {'epochs': 1, # number of iterations on the full set 
                         'lr': 0.0001}):
 
@@ -935,7 +935,7 @@ def train_NDL(data_train, data_valid, cue_index, outcome_index, temp_dir, chunks
     temp_dir: str
         directory where to store temporary files while training NDL
     chunksize : int
-        Number of lines to use for computing the accuracy. This is done through 
+        number of lines to use for computing the accuracy. This is done through 
         the computation of the activation matrix for these lines. 
     shuffle: Boolean
         whether to shuffle the data after every epoch
@@ -946,7 +946,18 @@ def train_NDL(data_train, data_valid, cue_index, outcome_index, temp_dir, chunks
     verbose: int (0, 1)
         verbosity mode. 0 = silent, 1 = one line per epoch.
     metrics: list
-        for now only ['accuracy'] is accepted
+        for now only ['accuracy', 'precision', 'recall', 'f1score'] is accepted
+    metric_average: str
+        offer almost the same options as the 'average' parameter in sklearn's precision_score, 
+        recall_score and f1_score functions ('binary' not considered), that is: 
+        'micro': calculate metrics globally by counting the total true positives, 
+                 false negatives and false positives
+        'macro': calculate metrics for each label, and find their unweighted mean. 
+                 This does not take label imbalance into account
+        'weighted': calculate metrics for each label, and find their average weighted 
+                    by support (the number of true instances for each label).
+        'samples': calculate metrics for each instance, and find their average (differs 
+                   from accuracy_score only in multilabel classification)
     params: dict
         model parameters:
         'epochs'
@@ -1005,15 +1016,15 @@ def train_NDL(data_train, data_valid, cue_index, outcome_index, temp_dir, chunks
     # Initialise the lists where we will store the performance scores in each epoch for the different metrics
     # train
     acc_hist = []
-    # precision_hist = []
-    # recall_hist = []
-    # f1score_hist = []
+    precision_hist = []
+    recall_hist = []
+    f1score_hist = []
 
     # valid
     val_acc_hist = []
-    # val_precision_hist = []
-    # val_recall_hist = []
-    # val_f1score_hist = []
+    val_precision_hist = []
+    val_recall_hist = []
+    val_f1score_hist = []
     
     # Train NDL for the chosen number of epochs. Each time save and print the metric scores
     for j in range(1, (1+params['epochs'])):
@@ -1075,23 +1086,23 @@ def train_NDL(data_train, data_valid, cue_index, outcome_index, temp_dir, chunks
         val_acc_j = accuracy_score(y_valid_true, y_valid_pred)
         val_acc_hist.append(val_acc_j)
 
-        # # precision
-        # precision_j = precision_score(y_train_true, y_train_pred)
-        # precision_hist.append(precision_j)
-        # val_precision_j = precision_score(y_valid_true, y_valid_pred)
-        # val_precision_hist.append(val_precision_j)
+        # precision
+        precision_j = precision_score(y_train_true, y_train_pred, average = metric_average)
+        precision_hist.append(precision_j)
+        val_precision_j = precision_score(y_valid_true, y_valid_pred, average = metric_average)
+        val_precision_hist.append(val_precision_j)
 
-        # # recall
-        # recall_j = recall_score(y_train_true, y_train_pred)
-        # recall_hist.append(recall_j)
-        # val_recall_j = recall_score(y_valid_true, y_valid_pred)
-        # val_recall_hist.append(val_recall_j)
+        # recall
+        recall_j = recall_score(y_train_true, y_train_pred, average = metric_average)
+        recall_hist.append(recall_j)
+        val_recall_j = recall_score(y_valid_true, y_valid_pred, average = metric_average)
+        val_recall_hist.append(val_recall_j)
 
-        # # F1-score
-        # f1score_j = f1_score(y_train_true, y_train_pred)
-        # f1score_hist.append(f1score_j)
-        # val_f1score_j = f1_score(y_valid_true, y_valid_pred)
-        # val_f1score_hist.append(val_f1score_j)  
+        # F1-score
+        f1score_j = f1_score(y_train_true, y_train_pred, average = metric_average)
+        f1score_hist.append(f1score_j)
+        val_f1score_j = f1_score(y_valid_true, y_valid_pred, average = metric_average)
+        val_f1score_hist.append(val_f1score_j)  
 
         # Display progress message  
         if verbose == 1:
@@ -1105,17 +1116,138 @@ def train_NDL(data_train, data_valid, cue_index, outcome_index, temp_dir, chunks
 
     ### Fit history object
     hist = {'acc': acc_hist,
-            # 'precision': precision_hist,
-            # 'recall': recall_hist,
-            # 'f1score': f1score_hist,
-            'val_acc': val_acc_hist
-            # 'val_precision': val_precision_hist,
-            # 'val_recall': val_recall_hist,
-            # 'val_f1score': val_f1score_hist
+            'precision': precision_hist,
+            'recall': recall_hist,
+            'f1score': f1score_hist,
+            'val_acc': val_acc_hist,
+            'val_precision': val_precision_hist,
+            'val_recall': val_recall_hist,
+            'val_f1score': val_f1score_hist
             }
-
-    
+   
     return hist, model
+
+def grid_search_NDL(data_train, data_valid, cue_index, outcome_index, 
+                    temp_dir, chunksize, params, prop_grid, tuning_output_file,     
+                    metrics = ['accuracy', 'precision', 'recall', 'f1score'], 
+                    metric_average = 'macro', shuffle = False, num_threads = 1, verbose = 0):
+
+    """ Grid search for feedforward neural networks
+
+    Parameters
+    ----------
+    data_train: dataframe or class
+        dataframe or indexed text file containing training data
+    data_valid: class or dataframe
+        dataframe or indexed text file containing validation data
+    cue_index: dict
+        mapping from cues to indices. The dictionary should include only the cues to keep in the data
+    outcome_index: dict
+        mapping from outcomes to indices. The dictionary should include only the outcomes to keep in the data
+    temp_dir: str
+        directory where to store temporary files while training NDL
+    chunksize : int
+        number of lines to use for computing the accuracy. This is done through 
+        the computation of the activation matrix for these lines. 
+    params: dict of lists
+        model parameters:
+        'epochs'
+        'batch_size'
+        'hidden_layers'
+        'hidden_neuron'
+        'lr'
+        'dropout'
+        'optimizer'
+        'losses'
+        'activation'
+        'last_activation'
+    prop_grid: float
+        proportion of the grid combinations to sample 
+    tuning_output_file: str
+        path of the csv file where the grid search results will be stored
+    metrics: list
+        for now only ['accuracy', 'precision', 'recall', 'f1score'] is accepted
+    metric_average: str
+        offer almost the same options as the 'average' parameter in sklearn's precision_score, 
+        recall_score and f1_score functions ('binary' not considered), that is: 
+        'micro': calculate metrics globally by counting the total true positives, 
+                 false negatives and false positives
+        'macro': calculate metrics for each label, and find their unweighted mean. 
+                 This does not take label imbalance into account
+        'weighted': calculate metrics for each label, and find their average weighted 
+                    by support (the number of true instances for each label).
+        'samples': calculate metrics for each instance, and find their average (differs 
+                   from accuracy_score only in multilabel classification)
+    shuffle: Boolean
+        whether to shuffle the data after every epoch
+    use_multiprocessing: Boolean
+        whether to generate batches in parallel. Default: False
+    num_threads: int
+        maximum number of processes to spin up when using generating the batches. Default: 0
+    verbose: int (0, 1, or 2)
+        verbosity mode. 0 = silent, 1 = progress bar, 2 = one line per epoch.
+
+    Returns
+    -------
+    None
+        save csv files
+    """
+
+    ### Create a list of dictionaries giving all possible parameter combinations
+    keys, values = zip(*params.items())
+    grid_full = [dict(zip(keys, v)) for v in itertools.product(*values)]
+    # shuffle the list of params
+    random.shuffle(grid_full)
+
+    ### Select the combinations to use 
+    N_comb = round(prop_grid * len(grid_full)) 
+    grid_select = grid_full[:N_comb]
+
+    ### Write to the csv file that encodes the results
+    with open(tuning_output_file, mode = 'w') as o:
+        csv_writer = csv.writer(o, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        heading = list(params.keys())
+        heading.extend(['acc', 'precision', 'recall', 'f1score', 
+                        'val_acc', 'val_precision', 'val_recall', 'val_f1score'])
+        csv_writer.writerow(heading)
+
+        ### Run the experiments
+        for i, param_comb in enumerate(grid_select):
+
+            # Message at the start of each iteration
+            print(f'Iteration {i+1} out of {len(grid_select)}: {param_comb}\n')
+
+            hist, model = train_NDL(data_train = data_train, 
+                                    data_valid = data_valid, 
+                                    cue_index = cue_index, 
+                                    outcome_index = outcome_index, 
+                                    temp_dir = temp_dir,
+                                    chunksize = chunksize,
+                                    shuffle = shuffle, 
+                                    num_threads = num_threads, 
+                                    verbose = verbose,
+                                    metrics = metrics, 
+                                    metric_average = metric_average,
+                                    params = param_comb)
+
+            # Export the results to a csv file
+            row_values = list(param_comb.values())
+            # Add the performance scores
+            # training
+            acc_i = hist['acc'][-1]
+            precision_i = hist['precision'][-1]
+            recall_i = hist['recall'][-1]            
+            f1score_i = hist['f1score'][-1]
+            # validation
+            val_acc_i = hist['val_acc'][-1]
+            val_precision_i = hist['val_precision'][-1]
+            val_recall_i = hist['val_recall'][-1]            
+            val_f1score_i = hist['val_f1score'][-1]
+            row_values.extend([acc_i, precision_i, recall_i, f1score_i, 
+                               val_acc_i, val_precision_i, val_recall_i, val_f1score_i])
+            # Write the row
+            csv_writer.writerow(row_values)
+            o.flush()
 
 ##################################
 # Saving and loading model objects
