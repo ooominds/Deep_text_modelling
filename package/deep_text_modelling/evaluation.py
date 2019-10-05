@@ -1,5 +1,7 @@
+import os
 import numpy as np
-import xarray
+import xarray as xr
+import pandas as pd
 from keras import backend as K
 import matplotlib.pyplot as plt
 from itertools import islice
@@ -365,7 +367,7 @@ def activations_to_proba(activations, T = 1):
 
     Parameters
     ----------
-    activations: xarray.DataArray
+    activations: xarray.DataArray or numpy.ndarray
         matrix of activations 
     T: float
         temperature hyperparameter to adjust the confidence in the predictions from the activations.
@@ -378,10 +380,18 @@ def activations_to_proba(activations, T = 1):
         of the different outcomes
     """
 
-    e_acts = xarray.ufuncs.exp(activations - xarray.DataArray.max(activations))
-    softmax = e_acts / e_acts.sum(axis = 1)
-    return softmax.transpose()
-
+    if isinstance(activations, np.ndarray):
+        e_acts = xr.ufuncs.exp((activations - np.max(activations))/T)
+        softmax = e_acts / e_acts.sum()
+        return softmax
+    elif isinstance(activations, xr.DataArray):
+        e_acts = xr.ufuncs.exp((activations - xr.DataArray.max(activations))/T)
+        softmax = e_acts / e_acts.sum(axis = 1)
+        return softmax.transpose()
+    else:
+        raise('the activation matrix should be either an xarray.DataArray or a numpy.ndarray')
+    
+    
 def activations_to_predictions(activations):
 
     """
@@ -432,7 +442,41 @@ def predict_outcomes_NDL(events_path, weights, chunksize, num_threads = 1):
         y_pred.extend(activations_to_predictions(activations)) 
     return y_pred
 
-def predict_proba_evenfile_NDL(model, data_test, is_data_new = True, T = 1, num_threads = 1):
+def predict_proba_oneevent_NDL(model, cue_seq, T = 1):
+
+    """ Compute predicted outcome probabilities for NDL for one event using softmax 
+
+    Parameters
+    ----------
+    model: class
+        ndl model output
+    cue_seq: str
+        underscore-seperated sequence of cues
+    T: float
+        temperature hyperparameter to adjust the confidence in the predictions from the activations.
+        Low values increase the confidence in the predictions. Default = 1, corresponds to a standard 
+        softmax transformation 
+
+    Returns
+    -------
+    numpy 1d-array
+        array containing the predicted probabilities
+    """
+
+    from deep_text_modelling.evaluation import activations_to_proba
+
+    ### Extract the cue tokens 
+    cues = cue_seq.split('_')
+
+    ### Compute the activations for all outcomes based on the cues that appear in the weight matrix
+    activations = model.weights.loc[{'cues': cues}].values.sum(axis=1)
+
+    ### Convert to the activations to probabilities
+    proba_pred = activations_to_proba(activations, T = T)
+
+    return proba_pred
+
+def predict_proba_eventfile_NDL(model, data_test, temp_dir = None, T = 1, num_threads = 1):
 
     """ Generate predicted probabilities for NDL
 
@@ -442,6 +486,9 @@ def predict_proba_evenfile_NDL(model, data_test, is_data_new = True, T = 1, num_
         NDL model outputs (contains weights and activations)
     data_test: dataframe or class
         dataframe or indexed text file containing test data
+    temp_dir: str
+        directory where to store the converted gz file if a dataframe is passed to data_test 
+        (needed to compute the activation matrix)
     T: float
         temperature hyperparameter to adjust the confidence in the predictions from the activations.
         Low values increase the confidence in the predictions. 
@@ -455,9 +502,22 @@ def predict_proba_evenfile_NDL(model, data_test, is_data_new = True, T = 1, num_
     """
 
     from pyndl.activation import activation
+    from deep_text_modelling.preprocessing import df_to_gz
 
-    # Generate the activations for the data if it is differnent from the training or validation data
-    activations_test = activation(events = data_test, 
+    ### Path to the train event file
+    if isinstance(data_test, str):     
+        events_test_path = data_test
+    elif isinstance(data_test, pd.DataFrame):
+        if temp_dir:
+            events_test_path = os.path.join(temp_dir, 'data_test_temp.gz')
+            df_to_gz(data = data_test, gz_outfile = events_test_path)
+        else: 
+            raise ValueError("provide a path to a temporary directory for computing the activations")
+    else:
+        raise ValueError("data_test should be either a path to an event file or a dataframe")
+
+    # Generate the activations 
+    activations_test = activation(events = events_test_path, 
                                   weights = model.weights,
                                   number_of_threads = num_threads,
                                   remove_duplicates = True,

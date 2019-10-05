@@ -979,7 +979,7 @@ def train_NDL(data_train, data_valid, cue_index, outcome_index, temp_dir, chunks
         events_train_path = os.path.join(temp_dir, 'unfiltered_events_train.gz')
         df_to_gz(data = data_train, gz_outfile = events_train_path)
     else:
-        raise ValueError("data_train should be either a path or a dataframe")
+        raise ValueError("data_train should be either a path to an event file or a dataframe")
 
     ### Path to the validation event file
     if isinstance(data_valid, str):     
@@ -988,7 +988,7 @@ def train_NDL(data_train, data_valid, cue_index, outcome_index, temp_dir, chunks
         events_valid_path = os.path.join(temp_dir, 'unfiltered_events_valid.gz')
         df_to_gz(data = data_valid, gz_outfile = events_valid_path)
     else:
-        raise ValueError("data_valid should be either a path or a dataframe")
+        raise ValueError("data_valid should be either a path to an event file or a dataframe")
 
     ### Paths to the filtered files
     filtered_events_train_path = os.path.join(temp_dir, 'filtered_events_train.gz')  
