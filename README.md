@@ -63,9 +63,9 @@ DTM contains some useful functions for assessing your models. These include:
 
 This is a very simple example that shows how to build FNN, LSTM and NDL models, and compare them on the problem of predicting the gender of a person (outcome) based on the letters in his or her name (cues). In this case, only one of two outcomes is possible for each event. [[notebook]](https://nbviewer.jupyter.org/github/Adnane017/Deep_text_modelling/blob/master/illustrative_examples/names/names.ipynb)
 
-### Multiclass classification (predicting tense from context)
+### Multiclass classification (predicting English tense from context)
 
-Here, we show how to apply the models to the problem of predicting English tense (outcome) from the words surrounding the main verb in a sentence (cues). In this case, only one outcome out of seven is possible for each event. [[notebook]](https://nbviewer.jupyter.org/github/Adnane017/Deep_text_modelling/blob/master/illustrative_examples/names/names.ipynb)
+Here, we show how to apply the models to the problem of predicting English tense (outcome) from the words surrounding the main verb in a sentence (cues). In this case, only one outcome out of seven is possible for each event. [[notebook]](https://nbviewer.jupyter.org/github/Adnane017/Deep_text_modelling/blob/master/illustrative_examples/tenses/tenses.ipynb)
 
 ### Multiclass multilabel classification (predicting words from orthographic cues)
 
