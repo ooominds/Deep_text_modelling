@@ -442,7 +442,7 @@ def predict_outcomes_NDL(events_path, weights, chunksize, num_threads = 1):
         y_pred.extend(activations_to_predictions(activations)) 
     return y_pred
 
-def predict_proba_oneevent_NDL(model, cue_seq, T = 1):
+def predict_proba_oneevent_NDL(model, cue_seq, remove_duplicates = True, T = 1):
 
     """ Compute predicted outcome probabilities for NDL for one event using softmax 
 
@@ -452,6 +452,8 @@ def predict_proba_oneevent_NDL(model, cue_seq, T = 1):
         ndl model output
     cue_seq: str
         underscore-seperated sequence of cues
+    remove_duplicates: boolean
+        Whether to remove repeated cues in the event (True) of not (False)
     T: float
         temperature hyperparameter to adjust the confidence in the predictions from the activations.
         Low values increase the confidence in the predictions. Default = 1, corresponds to a standard 
@@ -467,6 +469,14 @@ def predict_proba_oneevent_NDL(model, cue_seq, T = 1):
 
     ### Extract the cue tokens 
     cues = cue_seq.split('_')
+
+    # Remove duplicates if asked for
+    if remove_duplicates:
+        cues = list(set(cues))
+
+    ### Ignore_missing cues:
+    all_cues = model.weights.coords["cues"].values.tolist()
+    cues = [cue for cue in cues if cue in all_cues]
 
     ### Compute the activations for all outcomes based on the cues that appear in the weight matrix
     activations = model.weights.loc[{'cues': cues}].values.sum(axis=1)
