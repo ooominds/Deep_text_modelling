@@ -424,14 +424,27 @@ def chunk(iterable, chunksize):
     iterator = iter(iterable)
     return iter(lambda: list(islice(iterator, chunksize)), [])
 
-def predict_outcomes_NDL(events_path, weights, chunksize, num_threads = 1):
+def predict_outcomes_NDL(data_test, weights, temp_dir, chunksize, num_threads = 1):
 
     """compute outcome predictions by going through the corpus in chunks for memory efficiency"""
 
     from pyndl.activation import activation
+    from deep_text_modelling.preprocessing import df_to_gz
+
+    ### Path to the train event file
+    if isinstance(data_test, str):     
+        events_test_path = data_test
+    elif isinstance(data_test, pd.DataFrame):
+        if temp_dir:
+            events_test_path = os.path.join(temp_dir, 'data_test_temp.gz')
+            df_to_gz(data = data_test, gz_outfile = events_test_path)
+        else: 
+            raise ValueError("provide a path to a temporary directory for generating a temporary .gz event file")
+    else:
+        raise ValueError("data_test should be either a path to an event file or a dataframe")
 
     y_pred = []
-    events = io.events_from_file(events_path)
+    events = io.events_from_file(events_test_path)
     for events_chunk in chunk(events, chunksize):
         activations = activation(events = events_chunk, 
                                  weights = weights,
@@ -522,7 +535,7 @@ def predict_proba_eventfile_NDL(model, data_test, temp_dir = None, T = 1, num_th
             events_test_path = os.path.join(temp_dir, 'data_test_temp.gz')
             df_to_gz(data = data_test, gz_outfile = events_test_path)
         else: 
-            raise ValueError("provide a path to a temporary directory for computing the activations")
+            raise ValueError("provide a path to a temporary directory for generating a temporary .gz event file")
     else:
         raise ValueError("data_test should be either a path to an event file or a dataframe")
 
