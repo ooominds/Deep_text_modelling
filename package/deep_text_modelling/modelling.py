@@ -381,8 +381,8 @@ def train_FNN(data_train, data_valid, cue_index, outcome_index,
 
 def grid_search_FNN(data_train, data_valid, cue_index, outcome_index, 
                     generator, params, prop_grid, tuning_output_file,         
-                    shuffle = False, use_multiprocessing = False, 
-                    num_threads = 0, verbose = 0):
+                    shuffle_epoch = False, shuffle_grid = True, 
+                    use_multiprocessing = False, num_threads = 0, verbose = 0):
 
     """ Grid search for feedforward neural networks
 
@@ -415,8 +415,11 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
         proportion of the grid combinations to sample 
     tuning_output_file: str
         path of the csv file where the grid search results will be stored
-    shuffle: Boolean
-        whether to shuffle the data after every epoch
+    shuffle_epoch: Boolean
+        whether to shuffle the data after every epoch. Default: False
+    shuffle_grid: Boolean
+        whether to shuffle the parameter grid or respect the same order of parameters. Default: True
+        provided in `params'
     use_multiprocessing: Boolean
         whether to generate batches in parallel. Default: False
     num_threads: int
@@ -430,15 +433,20 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
         save csv files
     """
 
-    ### Create a list of dictionaries giving all possible parameter combinations
+    # Create a list of dictionaries giving all possible parameter combinations
     keys, values = zip(*params.items())
     grid_full = [dict(zip(keys, v)) for v in itertools.product(*values)]
+    
     # shuffle the list of params
-    random.shuffle(grid_full)
+    if shuffle_grid:
+        random.shuffle(grid_full)
 
-    ### Select the combinations to use 
+    # Select the combinations to use 
     N_comb = round(prop_grid * len(grid_full)) 
     grid_select = grid_full[:N_comb]
+
+    # Create a list of lists which stores all parameter combinations that are covered so far in the grid search 
+    param_comb_sofar = []
 
     ### Write to the csv file that encodes the results
     with open(tuning_output_file, mode = 'w') as o:
@@ -454,44 +462,66 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
             # Message at the start of each iteration
             print(f'Iteration {i+1} out of {len(grid_select)}: {param_comb}\n')
 
-            # Fit the model given the current param combination
-            out, model = train_FNN(data_train = data_train, 
-                                   data_valid = data_valid, 
-                                   cue_index = cue_index, 
-                                   outcome_index = outcome_index, 
-                                   generator = generator, 
-                                   shuffle = shuffle, 
-                                   use_multiprocessing = use_multiprocessing, 
-                                   num_threads = num_threads, 
-                                   verbose = verbose,
-                                   metrics = ['accuracy', precision, recall, f1score],
-                                   params = param_comb)
-
-            # Export the results to a csv file
+            # this will contain the values that will be recorded in each row. 
+            # We start by copying the parameter values
             row_values = list(param_comb.values())
-            # Add the performance scores
-            # training
-            loss_i = out.history['loss'][-1]
-            acc_i = out.history['acc'][-1]
-            precision_i = out.history['precision'][-1]
-            recall_i = out.history['recall'][-1]            
-            f1score_i = out.history['f1score'][-1]
-            # validation
-            val_loss_i = out.history['val_loss'][-1]
-            val_acc_i = out.history['val_acc'][-1]
-            val_precision_i = out.history['val_precision'][-1]
-            val_recall_i = out.history['val_recall'][-1]            
-            val_f1score_i = out.history['val_f1score'][-1]
-            row_values.extend([loss_i, acc_i, precision_i, recall_i, f1score_i, 
-                               val_loss_i, val_acc_i, val_precision_i, val_recall_i, val_f1score_i])
-            # Write the row
-            csv_writer.writerow(row_values)
-            o.flush()
 
-            # Clear memory           
-            del model, out
-            gc.collect()
-            K.clear_session()
+            # Check if the current parameter combination has already been processed in the grid search
+            if param_comb in param_comb_sofar:
+                print(f'This parameter combination was skipped because it was already processed: {param_comb}\n')
+
+            else:
+                # Fit the model given the current param combination
+                out, model = train_FNN(data_train = data_train, 
+                                    data_valid = data_valid, 
+                                    cue_index = cue_index, 
+                                    outcome_index = outcome_index, 
+                                    generator = generator, 
+                                    shuffle = shuffle_epoch, 
+                                    use_multiprocessing = use_multiprocessing, 
+                                    num_threads = num_threads, 
+                                    verbose = verbose,
+                                    metrics = ['accuracy', precision, recall, f1score],
+                                    params = param_comb)
+
+                # Get index of epochs in the 'param_comb' dictionary
+                for ind, (k, v) in enumerate(param_comb.items()):
+                    if k == 'epochs':
+                        i_epochs = ind
+
+                ### Export the results to a csv file
+                for j in range(param_comb['epochs']):
+                    
+                    # Copy the parameter values to current param combination variables
+                    row_values_j = row_values.copy()
+
+                    # correct the epoch num
+                    row_values_j[i_epochs] = j+1 
+
+                    # Add the derived combination to the list of all parameter combinations
+                    param_comb_sofar.append(row_values_j.copy()) 
+                    
+                    # Add the performance scores
+                    # training
+                    acc_j = hist['acc'][j]
+                    precision_j = hist['precision'][j]
+                    recall_j = hist['recall'][j]            
+                    f1score_j = hist['f1score'][j]
+                    # validation
+                    val_acc_j = hist['val_acc'][j]
+                    val_precision_j = hist['val_precision'][j]
+                    val_recall_j = hist['val_recall'][j]            
+                    val_f1score_j = hist['val_f1score'][j]
+                    row_values_j.extend([acc_j, precision_j, recall_j, f1score_j, 
+                                    val_acc_j, val_precision_j, val_recall_j, val_f1score_j])
+                    # Write the row
+                    csv_writer.writerow(row_values_j)
+                    o.flush()
+
+                # Clear memory           
+                del model, out
+                gc.collect()
+                K.clear_session()
 
 ########
 # LSTM
@@ -764,7 +794,7 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
  
 def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
                      generator, params, prop_grid, tuning_output_file, 
-                     shuffle = False, use_cuda = False, 
+                     shuffle_epoch = False, shuffle_grid = True, use_cuda = False, 
                      use_multiprocessing = False, num_threads = 0, verbose = 0):
 
     """ Grid search for LSTM
@@ -798,8 +828,11 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
         proportion of the grid combinations to sample 
     tuning_output_file: str
         path of the csv file where the grid search results will be stored
-    shuffle: Boolean
-        whether to shuffle the data after every epoch
+    shuffle_epoch: Boolean
+        whether to shuffle the data after every epoch. Default: False
+    shuffle_grid: Boolean
+        whether to shuffle the parameter grid or respect the same order of parameters. Default: True
+        provided in `params'
     use_cuda: Boolean
         whether to use the cuda optimised LSTM layer for faster training. Use only if 
         an Nvidia GPU is available with CUDA installed
@@ -819,12 +852,17 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
     ### Create a list of dictionaries giving all possible parameter combinations
     keys, values = zip(*params.items())
     grid_full = [dict(zip(keys, v)) for v in itertools.product(*values)]
+    
     # shuffle the list of params
-    random.shuffle(grid_full)
+    if shuffle_grid:
+        random.shuffle(grid_full)
 
     ### Select the combinations to use 
     N_comb = round(prop_grid * len(grid_full)) 
     grid_select = grid_full[:N_comb]
+
+    ### Create a list of lists which stores all parameter combinations that are covered so far in the grid search 
+    param_comb_sofar = []
 
     ### Write to the csv file that encodes the results
     with open(tuning_output_file, mode = 'w') as o:
@@ -840,46 +878,68 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
             # Message at the start of each iteration
             print(f'Iteration {i+1} out of {len(grid_select)}: {param_comb}\n')
 
-            # Fit the model given the current param combination
-            out, model = train_LSTM(data_train = data_train, 
-                                    data_valid = data_valid, 
-                                    cue_index = cue_index, 
-                                    outcome_index = outcome_index, 
-                                    max_len = max_len,
-                                    generator = generator,
-                                    shuffle = shuffle, 
-                                    use_cuda = use_cuda, 
-                                    use_multiprocessing = use_multiprocessing, 
-                                    num_threads = num_threads, 
-                                    verbose = verbose,
-                                    metrics = ['accuracy', precision, recall, f1score],
-                                    params = param_comb)
-
-            # Export the results to a csv file
+            # this will contain the values that will be recorded in each row. 
+            # We start by copying the parameter values
             row_values = list(param_comb.values())
-            # Add the performance scores
-            # training
-            loss_i = out.history['loss'][-1]
-            acc_i = out.history['acc'][-1]
-            precision_i = out.history['precision'][-1]
-            recall_i = out.history['recall'][-1]            
-            f1score_i = out.history['f1score'][-1]
-            # validation
-            val_loss_i = out.history['val_loss'][-1]
-            val_acc_i = out.history['val_acc'][-1]
-            val_precision_i = out.history['val_precision'][-1]
-            val_recall_i = out.history['val_recall'][-1]            
-            val_f1score_i = out.history['val_f1score'][-1]
-            row_values.extend([loss_i, acc_i, precision_i, recall_i, f1score_i, 
-                               val_loss_i, val_acc_i, val_precision_i, val_recall_i, val_f1score_i])
-            # Write the row
-            csv_writer.writerow(row_values)
-            o.flush()
 
-            # Clear memory           
-            del model, out
-            gc.collect()
-            K.clear_session()
+            # Get index of epochs in the 'param_comb' dictionary
+            for ind, (k, v) in enumerate(param_comb.items()):
+                if k == 'epochs':
+                    i_epochs = ind
+
+            # Check if the current parameter combination has already been processed in the grid search
+            if row_values in param_comb_sofar:
+                print(f'This parameter combination has already been processed: {param_comb}\n')
+
+            else:
+                # Fit the model given the current param combination
+                out, model = train_LSTM(data_train = data_train, 
+                                        data_valid = data_valid, 
+                                        cue_index = cue_index, 
+                                        outcome_index = outcome_index, 
+                                        max_len = max_len,
+                                        generator = generator,
+                                        shuffle = shuffle_epoch, 
+                                        use_cuda = use_cuda, 
+                                        use_multiprocessing = use_multiprocessing, 
+                                        num_threads = num_threads, 
+                                        verbose = verbose,
+                                        metrics = ['accuracy', precision, recall, f1score],
+                                        params = param_comb)
+
+                ### Export the results to a csv file
+                for j in range(param_comb['epochs']):
+
+                    # Copy the parameter values to current param combination variables
+                    row_values_j = row_values.copy()
+
+                    # correct the epoch num
+                    row_values_j[i_epochs] = j+1 
+
+                    # Add the derived combination to the list of all parameter combinations
+                    param_comb_sofar.append(row_values_j.copy()) 
+                    
+                    # Add the performance scores
+                    # training
+                    acc_j = hist['acc'][j]
+                    precision_j = hist['precision'][j]
+                    recall_j = hist['recall'][j]            
+                    f1score_j = hist['f1score'][j]
+                    # validation
+                    val_acc_j = hist['val_acc'][j]
+                    val_precision_j = hist['val_precision'][j]
+                    val_recall_j = hist['val_recall'][j]            
+                    val_f1score_j = hist['val_f1score'][j]
+                    row_values_j.extend([acc_j, precision_j, recall_j, f1score_j, 
+                                    val_acc_j, val_precision_j, val_recall_j, val_f1score_j])
+                    # Write the row
+                    csv_writer.writerow(row_values_j)
+                    o.flush()
+
+                # Clear memory           
+                del model, out
+                gc.collect()
+                K.clear_session()
 
 #####################################
 # Naive discriminative learning model
@@ -1133,14 +1193,15 @@ def train_NDL(data_train, data_valid, cue_index, outcome_index, temp_dir, chunks
 def grid_search_NDL(data_train, data_valid, cue_index, outcome_index, 
                     temp_dir, chunksize, params, prop_grid, tuning_output_file,     
                     metrics = ['accuracy', 'precision', 'recall', 'f1score'], 
-                    metric_average = 'macro', shuffle = False, num_threads = 1, verbose = 0):
+                    metric_average = 'macro', shuffle_epoch = False, 
+                    shuffle_grid = True, num_threads = 1, verbose = 0):
 
     """ Grid search for feedforward neural networks
 
     Parameters
     ----------
-    data_train: dataframe or class
-        dataframe or indexed text file containing training data
+    data_train: dataframe or str
+        dataframe or path to the file containing training data
     data_valid: class or dataframe
         dataframe or indexed text file containing validation data
     cue_index: dict
@@ -1173,8 +1234,11 @@ def grid_search_NDL(data_train, data_valid, cue_index, outcome_index,
                     by support (the number of true instances for each label).
         'samples': calculate metrics for each instance, and find their average (differs 
                    from accuracy_score only in multilabel classification)
-    shuffle: Boolean
-        whether to shuffle the data after every epoch
+    shuffle_epoch: Boolean
+        whether to shuffle the data after every epoch. Default: False
+    shuffle_grid: Boolean
+        whether to shuffle the parameter grid or respect the same order of parameters. Default: True
+        provided in `params'
     use_multiprocessing: Boolean
         whether to generate batches in parallel. Default: False
     num_threads: int
@@ -1191,12 +1255,17 @@ def grid_search_NDL(data_train, data_valid, cue_index, outcome_index,
     ### Create a list of dictionaries giving all possible parameter combinations
     keys, values = zip(*params.items())
     grid_full = [dict(zip(keys, v)) for v in itertools.product(*values)]
+
     # shuffle the list of params
-    random.shuffle(grid_full)
+    if shuffle_grid:
+        random.shuffle(grid_full)
 
     ### Select the combinations to use 
     N_comb = round(prop_grid * len(grid_full)) 
     grid_select = grid_full[:N_comb]
+
+    ### Create a list of lists which stores all parameter combinations that are covered so far in the grid search 
+    param_comb_sofar = []
 
     ### Write to the csv file that encodes the results
     with open(tuning_output_file, mode = 'w') as o:
@@ -1212,37 +1281,61 @@ def grid_search_NDL(data_train, data_valid, cue_index, outcome_index,
             # Message at the start of each iteration
             print(f'Iteration {i+1} out of {len(grid_select)}: {param_comb}\n')
 
-            hist, model = train_NDL(data_train = data_train, 
-                                    data_valid = data_valid, 
-                                    cue_index = cue_index, 
-                                    outcome_index = outcome_index, 
-                                    temp_dir = temp_dir,
-                                    chunksize = chunksize,
-                                    shuffle = shuffle, 
-                                    num_threads = num_threads, 
-                                    verbose = verbose,
-                                    metrics = metrics, 
-                                    metric_average = metric_average,
-                                    params = param_comb)
-
-            # Export the results to a csv file
+            # this will contain the values that will be recorded in each row. 
+            # We start by copying the parameter values
             row_values = list(param_comb.values())
-            # Add the performance scores
-            # training
-            acc_i = hist['acc'][-1]
-            precision_i = hist['precision'][-1]
-            recall_i = hist['recall'][-1]            
-            f1score_i = hist['f1score'][-1]
-            # validation
-            val_acc_i = hist['val_acc'][-1]
-            val_precision_i = hist['val_precision'][-1]
-            val_recall_i = hist['val_recall'][-1]            
-            val_f1score_i = hist['val_f1score'][-1]
-            row_values.extend([acc_i, precision_i, recall_i, f1score_i, 
-                               val_acc_i, val_precision_i, val_recall_i, val_f1score_i])
-            # Write the row
-            csv_writer.writerow(row_values)
-            o.flush()
+
+            # Get index of epochs in the 'param_comb' dictionary
+            for ind, (k, v) in enumerate(param_comb.items()):
+                if k == 'epochs':
+                    i_epochs = ind
+
+            # Check if the current parameter combination has already been processed in the grid search
+            if row_values in param_comb_sofar:
+                print(f'This parameter combination has already been processed: {param_comb}\n')
+
+            else:
+                hist, model = train_NDL(data_train = data_train, 
+                                        data_valid = data_valid, 
+                                        cue_index = cue_index, 
+                                        outcome_index = outcome_index, 
+                                        temp_dir = temp_dir,
+                                        chunksize = chunksize,
+                                        shuffle = shuffle_epoch, 
+                                        num_threads = num_threads, 
+                                        verbose = verbose,
+                                        metrics = metrics, 
+                                        metric_average = metric_average,
+                                        params = param_comb)
+
+                ### Export the results to a csv file
+                for j in range(param_comb['epochs']):
+
+                    # Copy the parameter values to current param combination variables
+                    row_values_j = row_values.copy()
+
+                    # correct the epoch num
+                    row_values_j[i_epochs] = j+1 
+
+                    # Add the derived combination to the list of all parameter combinations
+                    param_comb_sofar.append(row_values_j.copy()) 
+                    
+                    # Add the performance scores
+                    # training
+                    acc_j = hist['acc'][j]
+                    precision_j = hist['precision'][j]
+                    recall_j = hist['recall'][j]            
+                    f1score_j = hist['f1score'][j]
+                    # validation
+                    val_acc_j = hist['val_acc'][j]
+                    val_precision_j = hist['val_precision'][j]
+                    val_recall_j = hist['val_recall'][j]            
+                    val_f1score_j = hist['val_f1score'][j]
+                    row_values_j.extend([acc_j, precision_j, recall_j, f1score_j, 
+                                    val_acc_j, val_precision_j, val_recall_j, val_f1score_j])
+                    # Write the row
+                    csv_writer.writerow(row_values_j)
+                    o.flush()
 
 ##################################
 # Saving and loading model objects
