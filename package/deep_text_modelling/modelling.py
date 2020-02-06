@@ -4,6 +4,7 @@ import csv
 import gc
 import sys
 import numpy as np
+import xarray as xr
 import pandas as pd
 import random 
 import json
@@ -1062,12 +1063,14 @@ def train_NDL(data_train, data_valid, cue_index, outcome_index, temp_dir, chunks
         # y_valid_pred = activations_to_predictions(activations_valid)
 
         # Predicted outcomes from the activations
-        y_train_pred = predict_outcomes_NDL(events_path = filtered_events_train_path, 
+        y_train_pred = predict_outcomes_NDL(data_test = filtered_events_train_path, 
                                             weights = weights, 
+                                            temp_dir = temp_dir,
                                             chunksize = chunksize, 
                                             num_threads = num_threads)
-        y_valid_pred = predict_outcomes_NDL(events_path = filtered_events_valid_path, 
+        y_valid_pred = predict_outcomes_NDL(data_test = filtered_events_valid_path, 
                                             weights = weights, 
+                                            temp_dir = temp_dir,
                                             chunksize = chunksize, 
                                             num_threads = num_threads)
 
@@ -1254,7 +1257,7 @@ def export_model(model, path):
     model: class
         model class object (e.g. keras or NDL)
     path: str
-        path where to save the file
+        path where to save the file (use .h5 file format)
 
     Returns
     -------
@@ -1263,10 +1266,11 @@ def export_model(model, path):
     """
 
     # Save model as an hdf5 file
-    if isinstance(model, NDLmodel):     
-        with h5py.File(path, 'w') as f:
-            for item in vars(model).items():
-                f.create_dataset(item[0], data = item[1])
+    if isinstance(model, NDLmodel):  
+        model.weights.to_netcdf(path) # Only the weight matrix is saved 
+        # with h5py.File(path, 'w') as f:
+        #     for item in vars(model).items():
+        #         f.create_dataset(item[0], data = item[1])
     elif isinstance(model, Sequential):
         model.save(path)
     else: 
@@ -1292,10 +1296,13 @@ def import_model(path, custom_measures = None):
     with h5py.File(path, 'r') as f:
         if 'model_weights' in f.keys(): # => keras object
             model = load_model(path, custom_objects = custom_measures)
-        elif 'weights' in f.keys(): # => NDLmodel object
-            model = NDLmodel(weights = 0)
-            for key in f.keys():
-                setattr(model, key, f[key].value)
+        elif '__xarray_dataarray_variable__' in f.keys(): # => NDLmodel object
+            with xr.open_dataarray(path) as weights_read:  
+                model = NDLmodel(weights = weights_read)
+        # elif 'weights' in f.keys(): # => NDLmodel object
+        #     model = NDLmodel(weights = 0)
+        #     for key in f.keys():
+        #         setattr(model, key, f[key].value)
         else:
             raise ValueError("Stored model should be a keras (Sequential class) or ndl (NDLmodel class) model")
     return model
