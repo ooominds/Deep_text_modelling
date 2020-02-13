@@ -576,7 +576,7 @@ def shuffle_textfile(infile_path, outfile_path):
             lines = [lines[0]] + random.shuffle(lines[1:]) # lines[0] is the heading     
             fw.writelines(lines)
 
-def create_epochs_textfile(infile_path, outfile_path, epoch, shuffle = False):
+def create_epochs_textfile(infile_path, outfile_path, epoch, shuffle_epoch = False):
 
     """Generate epochs from a dataset of events that is stored as a gz file    
 
@@ -588,7 +588,7 @@ def create_epochs_textfile(infile_path, outfile_path, epoch, shuffle = False):
         path to the duplicatd file
     epoch: int
         number of epochs to generate
-    shuffle: Boolean
+    shuffle_epoch: Boolean
         whether to shuffle the data after every epoch
 
     Returns
@@ -601,7 +601,7 @@ def create_epochs_textfile(infile_path, outfile_path, epoch, shuffle = False):
         with gzip.open(outfile_path , 'wt', encoding = 'utf-8') as fw:
             lines = fr.readlines()
             lines_epoch = lines
-            if shuffle:
+            if shuffle_epoch:
                 for j in range(1, epoch):
                     lines_epoch = lines_epoch + random.shuffle(lines[1:])
             else:

@@ -149,7 +149,7 @@ def predict_proba_eventfile_FNN(model, data_test, num_cues, num_outcomes, cue_in
                          num_outcomes = num_outcomes,
                          cue_index = cue_index,
                          outcome_index = outcome_index,
-                         shuffle = False)
+                         shuffle_epoch = False)
 
     proba_pred = model.predict_generator(test_gen,
                                          use_multiprocessing = use_multiprocessing, 
@@ -233,7 +233,7 @@ def predict_proba_eventfile_LSTM(model, data_test, num_cues, num_outcomes, cue_i
                          cue_index = cue_index,
                          outcome_index = outcome_index,
                          max_len = max_len,
-                         shuffle = False)
+                         shuffle_epoch = False)
 
     proba_pred = model.predict_generator(test_gen,
                                          use_multiprocessing = use_multiprocessing, 

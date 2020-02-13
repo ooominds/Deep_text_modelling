@@ -126,7 +126,7 @@ class generator_textfile_FNN(keras.utils.Sequence):
         mapping from cues to indices
     outcome_index: dict
         mapping from outcomes to indices
-    shuffle: Boolean
+    shuffle_epoch: Boolean
         whether to shuffle the data after every epoch
 
     Returns
@@ -136,7 +136,7 @@ class generator_textfile_FNN(keras.utils.Sequence):
     """
 
     def __init__(self, data, batch_size, num_cues, num_outcomes, 
-                 cue_index, outcome_index, shuffle = False):
+                 cue_index, outcome_index, shuffle_epoch = False):
         'Initialization'
         self.data =  data
         self.batch_size = batch_size    
@@ -144,7 +144,7 @@ class generator_textfile_FNN(keras.utils.Sequence):
         self.num_outcomes = num_outcomes
         self.cue_index = cue_index
         self.outcome_index = outcome_index
-        self.shuffle = shuffle
+        self.shuffle_epoch = shuffle_epoch
         self.on_epoch_end()
 
     def __len__(self):
@@ -162,7 +162,7 @@ class generator_textfile_FNN(keras.utils.Sequence):
     def on_epoch_end(self):
         'Updates indexes after each epoch'
         self.indexes = np.arange(len(self.data))
-        if self.shuffle == True:
+        if self.shuffle_epoch == True:
             np.random.shuffle(self.indexes)
 
     def __data_generation(self, indexes_batch):
@@ -201,7 +201,7 @@ class generator_df_FNN(keras.utils.Sequence):
         mapping from cues to indices
     outcome_index: dict
         mapping from outcomes to indices
-    shuffle: Boolean
+    shuffle_epoch: Boolean
         whether to shuffle the data after every epoch
 
     Returns
@@ -211,7 +211,7 @@ class generator_df_FNN(keras.utils.Sequence):
     """
 
     def __init__(self, data, batch_size, num_cues, num_outcomes, 
-                 cue_index, outcome_index, shuffle = False):
+                 cue_index, outcome_index, shuffle_epoch = False):
         'Initialization'
         self.data =  data
         self.batch_size = batch_size    
@@ -219,7 +219,7 @@ class generator_df_FNN(keras.utils.Sequence):
         self.num_outcomes = num_outcomes
         self.cue_index = cue_index
         self.outcome_index = outcome_index
-        self.shuffle = shuffle
+        self.shuffle_epoch = shuffle_epoch
         self.on_epoch_end()
 
     def __len__(self):
@@ -237,7 +237,7 @@ class generator_df_FNN(keras.utils.Sequence):
     def on_epoch_end(self):
         'Updates indexes after each epoch'
         self.indexes = np.arange(len(self.data))
-        if self.shuffle == True:
+        if self.shuffle_epoch == True:
             np.random.shuffle(self.indexes)
 
     def __data_generation(self, indexes_batch):
@@ -252,7 +252,7 @@ class generator_df_FNN(keras.utils.Sequence):
         return X, Y
 
 def train_FNN(data_train, data_valid, cue_index, outcome_index, 
-              generator = generator_textfile_FNN, shuffle = False, 
+              generator = generator_textfile_FNN, shuffle_epoch = False, 
               use_multiprocessing = False, num_threads = 0, verbose = 0,
               metrics = ['accuracy', precision, recall, f1score],
               params = {'epochs': 1, # number of iterations on the full set 
@@ -281,7 +281,7 @@ def train_FNN(data_train, data_valid, cue_index, outcome_index,
     generator: class
         use 'generator = generator_df_FNN' if the data is given as a dataframe or 
         'generator = generator_textfile_FNN' if the data is given as an indexed file 
-    shuffle: Boolean
+    shuffle_epoch: Boolean
         whether to shuffle the data after every epoch
     use_multiprocessing: Boolean
         whether to generate batches in parallel. Default: False
@@ -320,14 +320,14 @@ def train_FNN(data_train, data_valid, cue_index, outcome_index,
                           num_outcomes = num_outcomes,
                           cue_index = cue_index,
                           outcome_index = outcome_index,
-                          shuffle = shuffle)
+                          shuffle_epoch = shuffle_epoch)
     valid_gen = generator(data = data_valid, 
                           batch_size = params['batch_size'],
                           num_cues = num_cues,
                           num_outcomes = num_outcomes,
                           cue_index = cue_index,
                           outcome_index = outcome_index,
-                          shuffle = shuffle)
+                          shuffle_epoch = shuffle_epoch)
 
     ### Initialise the model
     model = Sequential()  
@@ -376,8 +376,9 @@ def train_FNN(data_train, data_valid, cue_index, outcome_index,
                               use_multiprocessing = use_multiprocessing,
                               verbose = verbose,
                               workers = num_threads)
+    hist = out.history
     
-    return out, model
+    return hist, model
 
 def grid_search_FNN(data_train, data_valid, cue_index, outcome_index, 
                     generator, params, prop_grid, tuning_output_file,         
@@ -472,17 +473,17 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
 
             else:
                 # Fit the model given the current param combination
-                out, model = train_FNN(data_train = data_train, 
-                                    data_valid = data_valid, 
-                                    cue_index = cue_index, 
-                                    outcome_index = outcome_index, 
-                                    generator = generator, 
-                                    shuffle = shuffle_epoch, 
-                                    use_multiprocessing = use_multiprocessing, 
-                                    num_threads = num_threads, 
-                                    verbose = verbose,
-                                    metrics = ['accuracy', precision, recall, f1score],
-                                    params = param_comb)
+                hist, model = train_FNN(data_train = data_train, 
+                                        data_valid = data_valid, 
+                                        cue_index = cue_index, 
+                                        outcome_index = outcome_index, 
+                                        generator = generator, 
+                                        shuffle_epoch = shuffle_epoch, 
+                                        use_multiprocessing = use_multiprocessing, 
+                                        num_threads = num_threads, 
+                                        verbose = verbose,
+                                        metrics = ['accuracy', precision, recall, f1score],
+                                        params = param_comb)
 
                 # Get index of epochs in the 'param_comb' dictionary
                 for ind, (k, v) in enumerate(param_comb.items()):
@@ -503,23 +504,25 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
                     
                     # Add the performance scores
                     # training
+                    loss_j = hist['loss'][j]
                     acc_j = hist['acc'][j]
                     precision_j = hist['precision'][j]
                     recall_j = hist['recall'][j]            
                     f1score_j = hist['f1score'][j]
                     # validation
+                    val_loss_j = hist['val_loss'][j]
                     val_acc_j = hist['val_acc'][j]
                     val_precision_j = hist['val_precision'][j]
                     val_recall_j = hist['val_recall'][j]            
                     val_f1score_j = hist['val_f1score'][j]
-                    row_values_j.extend([acc_j, precision_j, recall_j, f1score_j, 
-                                    val_acc_j, val_precision_j, val_recall_j, val_f1score_j])
+                    row_values_j.extend([loss_j, acc_j, precision_j, recall_j, f1score_j, 
+                                         val_loss_j, val_acc_j, val_precision_j, val_recall_j, val_f1score_j])
                     # Write the row
                     csv_writer.writerow(row_values_j)
                     o.flush()
 
                 # Clear memory           
-                del model, out
+                del model, hist
                 gc.collect()
                 K.clear_session()
 
@@ -548,7 +551,7 @@ class generator_textfile_LSTM(keras.utils.Sequence):
         mapping from outcomes to indices
     max_len: int
         Consider only 'max_len' first tokens in a sequence
-    shuffle: Boolean
+    shuffle_epoch: Boolean
         whether to shuffle the data after every epoch
 
     Returns
@@ -558,7 +561,7 @@ class generator_textfile_LSTM(keras.utils.Sequence):
     """
 
     def __init__(self, data, batch_size, num_cues, num_outcomes, 
-                 cue_index, outcome_index, max_len, shuffle = False):
+                 cue_index, outcome_index, max_len, shuffle_epoch = False):
         'Initialization'
         self.data =  data
         self.batch_size = batch_size    
@@ -567,7 +570,7 @@ class generator_textfile_LSTM(keras.utils.Sequence):
         self.cue_index = cue_index
         self.outcome_index = outcome_index
         self.max_len = max_len
-        self.shuffle = shuffle
+        self.shuffle_epoch = shuffle_epoch
         self.on_epoch_end()
 
     def __len__(self):
@@ -585,7 +588,7 @@ class generator_textfile_LSTM(keras.utils.Sequence):
     def on_epoch_end(self):
         'Updates indexes after each epoch'
         self.indexes = np.arange(len(self.data))
-        if self.shuffle == True:
+        if self.shuffle_epoch == True:
             np.random.shuffle(self.indexes)
 
     def __data_generation(self, indexes_batch):
@@ -626,7 +629,7 @@ class generator_df_LSTM(keras.utils.Sequence):
         mapping from outcomes to indices
     max_len: int
         Consider only 'max_len' first tokens in a sequence
-    shuffle: Boolean
+    shuffle_epoch: Boolean
         whether to shuffle the data after every epoch
 
     Returns
@@ -636,7 +639,7 @@ class generator_df_LSTM(keras.utils.Sequence):
     """
 
     def __init__(self, data, batch_size, num_cues, num_outcomes, 
-                 cue_index, outcome_index, max_len, shuffle = False):
+                 cue_index, outcome_index, max_len, shuffle_epoch = False):
         'Initialization'
         self.data =  data
         self.batch_size = batch_size    
@@ -645,7 +648,7 @@ class generator_df_LSTM(keras.utils.Sequence):
         self.cue_index = cue_index
         self.outcome_index = outcome_index
         self.max_len = max_len
-        self.shuffle = shuffle
+        self.shuffle_epoch = shuffle_epoch
         self.on_epoch_end()
 
     def __len__(self):
@@ -663,7 +666,7 @@ class generator_df_LSTM(keras.utils.Sequence):
     def on_epoch_end(self):
         'Updates indexes after each epoch'
         self.indexes = np.arange(len(self.data))
-        if self.shuffle == True:
+        if self.shuffle_epoch == True:
             np.random.shuffle(self.indexes)
 
     def __data_generation(self, indexes_batch):
@@ -679,7 +682,7 @@ class generator_df_LSTM(keras.utils.Sequence):
         return X, Y
 
 def train_LSTM(data_train, data_valid, cue_index, outcome_index, max_len, 
-               generator = generator_textfile_LSTM, shuffle = False, 
+               generator = generator_textfile_LSTM, shuffle_epoch = False, 
                use_cuda = False, use_multiprocessing = False, 
                num_threads = 0, verbose = 0,
                metrics = ['accuracy', precision, recall, f1score],
@@ -709,7 +712,7 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
     generator: class
         use 'generator = generator_df_LSTM' if the data is given as a dataframe or 
         'generator = generator_textfile_LSTM' if the data is given as an indexed file    
-    shuffle: Boolean
+    shuffle_epoch: Boolean
         whether to shuffle the data after every epoch
     use_cuda: Boolean
         whether to use the cuda optimised LSTM layer for faster training. Use only if 
@@ -750,7 +753,7 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
                           cue_index = cue_index,
                           outcome_index = outcome_index,
                           max_len = max_len,
-                          shuffle = shuffle)
+                          shuffle_epoch = shuffle_epoch)
     valid_gen = generator(data = data_valid, 
                           batch_size = params['batch_size'],
                           num_cues = num_cues,
@@ -758,7 +761,7 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
                           cue_index = cue_index,
                           outcome_index = outcome_index,
                           max_len = max_len,
-                          shuffle = shuffle)
+                          shuffle_epoch = shuffle_epoch)
 
     ### Initialise the model
     model = Sequential()  
@@ -789,8 +792,10 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
                               use_multiprocessing = use_multiprocessing,
                               verbose = verbose,
                               workers = num_threads)
-    
-    return out, model
+
+    hist = out.history    
+
+    return hist, model
  
 def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
                      generator, params, prop_grid, tuning_output_file, 
@@ -893,13 +898,13 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
 
             else:
                 # Fit the model given the current param combination
-                out, model = train_LSTM(data_train = data_train, 
+                hist, model = train_LSTM(data_train = data_train, 
                                         data_valid = data_valid, 
                                         cue_index = cue_index, 
                                         outcome_index = outcome_index, 
                                         max_len = max_len,
                                         generator = generator,
-                                        shuffle = shuffle_epoch, 
+                                        shuffle_epoch = shuffle_epoch, 
                                         use_cuda = use_cuda, 
                                         use_multiprocessing = use_multiprocessing, 
                                         num_threads = num_threads, 
@@ -921,23 +926,25 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
                     
                     # Add the performance scores
                     # training
+                    loss_j = hist['loss'][j]
                     acc_j = hist['acc'][j]
                     precision_j = hist['precision'][j]
                     recall_j = hist['recall'][j]            
                     f1score_j = hist['f1score'][j]
                     # validation
+                    val_loss_j = hist['val_loss'][j]
                     val_acc_j = hist['val_acc'][j]
                     val_precision_j = hist['val_precision'][j]
                     val_recall_j = hist['val_recall'][j]            
                     val_f1score_j = hist['val_f1score'][j]
-                    row_values_j.extend([acc_j, precision_j, recall_j, f1score_j, 
-                                    val_acc_j, val_precision_j, val_recall_j, val_f1score_j])
+                    row_values_j.extend([loss_j, acc_j, precision_j, recall_j, f1score_j, 
+                                         val_loss_j, val_acc_j, val_precision_j, val_recall_j, val_f1score_j])
                     # Write the row
                     csv_writer.writerow(row_values_j)
                     o.flush()
 
                 # Clear memory           
-                del model, out
+                del model, hist
                 gc.collect()
                 K.clear_session()
 
@@ -975,8 +982,8 @@ class NDLmodel():
         # self.activations_valid = activations_valid
         #self.performance_hist = performance_hist
 
-def train_NDL(data_train, data_valid, cue_index, outcome_index, temp_dir, chunksize,
-              shuffle = False, num_threads = 1, verbose = 0, 
+def train_NDL(data_train, data_valid, cue_index, outcome_index, temp_dir,
+              shuffle_epoch = False, num_threads = 1, chunksize = 10000, verbose = 1, 
               metrics = ['accuracy', 'precision', 'recall', 'f1score'], metric_average = 'macro',
               params = {'epochs': 1, # number of iterations on the full set 
                         'lr': 0.0001}):
@@ -995,15 +1002,15 @@ def train_NDL(data_train, data_valid, cue_index, outcome_index, temp_dir, chunks
         mapping from outcomes to indices. The dictionary should include only the outcomes to keep in the data
     temp_dir: str
         directory where to store temporary files while training NDL
-    chunksize : int
-        number of lines to use for computing the accuracy. This is done through 
-        the computation of the activation matrix for these lines. 
-    shuffle: Boolean
+    shuffle_epoch: Boolean
         whether to shuffle the data after every epoch
     use_multiprocessing: Boolean
         whether to generate batches in parallel. Default: False
     num_threads: int
         maximum number of processes to use when training NDL. Default: 1
+    chunksize : int
+        number of lines to use for computing the accuracy. This is done through 
+        the computation of the activation matrix for these lines. Default: 10000 
     verbose: int (0, 1)
         verbosity mode. 0 = silent, 1 = one line per epoch.
     metrics: list
@@ -1104,24 +1111,6 @@ def train_NDL(data_train, data_valid, cue_index, outcome_index, temp_dir, chunks
                       temporary_directory = temp_dir,
                       verbose = False)
 
-        # # Compute the activation matrix on the training set
-        # activations_train = activation(events = filtered_events_train_path, 
-        #                                weights = weights,
-        #                                number_of_threads = num_threads,
-        #                                remove_duplicates = True,
-        #                                ignore_missing_cues = True)
-
-        # # Compute the activation matrix on the validation set
-        # activations_valid = activation(events = filtered_events_valid_path, 
-        #                                weights = weights,
-        #                                number_of_threads = num_threads,
-        #                                remove_duplicates = True,
-        #                                ignore_missing_cues = True)
-
-        # # Predicted outcomes from the activations
-        # y_train_pred = activations_to_predictions(activations_train) 
-        # y_valid_pred = activations_to_predictions(activations_valid)
-
         # Predicted outcomes from the activations
         y_train_pred = predict_outcomes_NDL(data_test = filtered_events_train_path, 
                                             weights = weights, 
@@ -1191,10 +1180,11 @@ def train_NDL(data_train, data_valid, cue_index, outcome_index, temp_dir, chunks
     return hist, model
 
 def grid_search_NDL(data_train, data_valid, cue_index, outcome_index, 
-                    temp_dir, chunksize, params, prop_grid, tuning_output_file,     
+                    temp_dir, params, prop_grid, tuning_output_file,     
                     metrics = ['accuracy', 'precision', 'recall', 'f1score'], 
                     metric_average = 'macro', shuffle_epoch = False, 
-                    shuffle_grid = True, num_threads = 1, verbose = 0):
+                    shuffle_grid = True, num_threads = 1, chunksize = 10000, 
+                    verbose = 0):
 
     """ Grid search for feedforward neural networks
 
@@ -1210,9 +1200,6 @@ def grid_search_NDL(data_train, data_valid, cue_index, outcome_index,
         mapping from outcomes to indices. The dictionary should include only the outcomes to keep in the data
     temp_dir: str
         directory where to store temporary files while training NDL
-    chunksize : int
-        number of lines to use for computing the accuracy. This is done through 
-        the computation of the activation matrix for these lines. 
     params: dict of lists
         model parameters:
         'epochs'
@@ -1243,6 +1230,9 @@ def grid_search_NDL(data_train, data_valid, cue_index, outcome_index,
         whether to generate batches in parallel. Default: False
     num_threads: int
         maximum number of processes to spin up when using generating the batches. Default: 0
+    chunksize : int
+        number of lines to use for computing the accuracy. This is done through 
+        the computation of the activation matrix for these lines. Default: 10000
     verbose: int (0, 1, or 2)
         verbosity mode. 0 = silent, 1 = progress bar, 2 = one line per epoch.
 
@@ -1300,9 +1290,9 @@ def grid_search_NDL(data_train, data_valid, cue_index, outcome_index,
                                         cue_index = cue_index, 
                                         outcome_index = outcome_index, 
                                         temp_dir = temp_dir,
-                                        chunksize = chunksize,
-                                        shuffle = shuffle_epoch, 
-                                        num_threads = num_threads, 
+                                        shuffle_epoch = shuffle_epoch, 
+                                        num_threads = num_threads,
+                                        chunksize = chunksize, 
                                         verbose = verbose,
                                         metrics = metrics, 
                                         metric_average = metric_average,
@@ -1437,130 +1427,3 @@ def import_history(path):
 
     history_dict = json.load(open(path, 'r'))
     return history_dict
-
-# def save_keras_history(history, path):
-
-#     """ Save a keras training history 
-
-#     Parameters
-#     ----------
-#     history: class
-#         keras history object
-#     path: str
-#         path where to save the file
-
-#     Returns
-#     -------
-#     None
-#         export a dictionary as a json file
-#     """
-
-#     # Get the history dictionary containing the performance scores (loss and other metrics) for each epoch
-#     history_dict = history.history
-
-#     # Save it as a json file
-#     json.dump(history_dict, open(path, 'w'))
-
-# def load_keras_history(path):
-
-#     """ Load a keras training history as a dictionary 
-
-#     Parameters
-#     ----------
-#     path: str
-#         path where to save the file
-
-#     Returns
-#     -------
-#     dict
-#         history dictionary containing the performance scores (loss and other metrics) for each epoch
-#     """
-
-#     history_dict = json.load(open(path, 'r'))
-#     return history_dict
-
-# def save_ndl_model(model, path):
-
-#     """ Save an NDL model object
-
-#     Parameters
-#     ----------
-#     model: class
-#         NDL model class object
-#     path: str
-#         path where to save the file
-
-#     Returns
-#     -------
-#     None
-#         export the class as an hdf5 file
-#     """
-
-#     # isinstance(NDL_model, NDLmodel)
-
-#     # Save it as an hdf5 file
-#     with h5py.File(path, 'w') as f:
-#         for item in vars(model).items():
-#             f.create_dataset(item[0], data = item[1])
-
-# def load_ndl_model(path):
-
-#     """ Load an NDL model object from an hdf5 file
-
-#     Parameters
-#     ----------
-#     path: str
-#         path where the file is saved
-
-#     Returns
-#     -------
-#     class object
-#         NDL model object
-#     """
-
-#     model = NDLmodel(weights = 0)
-
-#     # Load the hdf5 file
-#     with h5py.File(path, 'r') as f:
-#         for key in f.keys():
-#             setattr(model, key, f[key].value)
-
-#     return model
-
-# def save_ndl_history(history_dict, path):
-
-#     """ Save an NDL training history 
-
-#     Parameters
-#     ----------
-#     history_dict: dict
-#         NDL training history stored as a dictionary, and which contains the performance scores (loss and other metrics) for each epoch
-#     path: str
-#         path where to save the file
-
-#     Returns
-#     -------
-#     None
-#         export a dictionary as a json file
-#     """
-
-#     # Save it as a json file
-#     json.dump(history_dict, open(path, 'w'))
-
-# def load_ndl_history(path):
-
-#     """ Load an NDL training history as a dictionary 
-
-#     Parameters
-#     ----------
-#     path: str
-#         path where to save the file
-
-#     Returns
-#     -------
-#     dict
-#         history dictionary containing the performance scores (loss and other metrics) for each epoch
-#     """
-
-#     history_dict = json.load(open(path, 'r'))
-#     return history_dict
