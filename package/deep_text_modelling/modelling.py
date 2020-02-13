@@ -966,7 +966,7 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
                                         use_cuda = use_cuda, 
                                         use_multiprocessing = use_multiprocessing, 
                                         num_threads = num_threads, 
-                                        verbose = verbose,
+                                        verbose = 0,
                                         metrics = ['accuracy', precision, recall, f1score],
                                         params = param_comb)
 
