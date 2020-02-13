@@ -288,7 +288,7 @@ def train_FNN(data_train, data_valid, cue_index, outcome_index,
     num_threads: int
         maximum number of processes to spin up when using generating the batches. Default: 0
     verbose: int (0, 1, or 2)
-        verbosity mode. 0 = silent, 1 = progress bar, 2 = one line per epoch.
+        verbosity mode. 0 = silent, 1 = progress bar, 2 = one line per epoch. Default: 0
     metrics: list
     params: dict
         model parameters:
@@ -383,7 +383,7 @@ def train_FNN(data_train, data_valid, cue_index, outcome_index,
 def grid_search_FNN(data_train, data_valid, cue_index, outcome_index, 
                     generator, params, prop_grid, tuning_output_file,         
                     shuffle_epoch = False, shuffle_grid = True, 
-                    use_multiprocessing = False, num_threads = 0, verbose = 0):
+                    use_multiprocessing = False, num_threads = 0, verbose = 1):
 
     """ Grid search for feedforward neural networks
 
@@ -425,8 +425,8 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
         whether to generate batches in parallel. Default: False
     num_threads: int
         maximum number of processes to spin up when using generating the batches. Default: 0
-    verbose: int (0, 1, or 2)
-        verbosity mode. 0 = silent, 1 = progress bar, 2 = one line per epoch.
+    verbose: int (0 or 1)
+        verbosity mode. 0 = silent, 1 = one line per parameter combination. Default:1
 
     Returns
     -------
@@ -461,7 +461,8 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
         for i, param_comb in enumerate(grid_select):
 
             # Message at the start of each iteration
-            print(f'Iteration {i+1} out of {len(grid_select)}: {param_comb}\n')
+            if verbose == 1:
+                print(f'Iteration {i+1} out of {len(grid_select)}: {param_comb}\n')
 
             # this will contain the values that will be recorded in each row. 
             # We start by copying the parameter values
@@ -469,7 +470,8 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
 
             # Check if the current parameter combination has already been processed in the grid search
             if param_comb in param_comb_sofar:
-                print(f'This parameter combination was skipped because it was already processed: {param_comb}\n')
+                if verbose == 1:
+                    print(f'This parameter combination was skipped because it was already processed: {param_comb}\n')
 
             else:
                 # Fit the model given the current param combination
@@ -481,7 +483,7 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
                                         shuffle_epoch = shuffle_epoch, 
                                         use_multiprocessing = use_multiprocessing, 
                                         num_threads = num_threads, 
-                                        verbose = verbose,
+                                        verbose = 0,
                                         metrics = ['accuracy', precision, recall, f1score],
                                         params = param_comb)
 
@@ -800,7 +802,7 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
 def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
                      generator, params, prop_grid, tuning_output_file, 
                      shuffle_epoch = False, shuffle_grid = True, use_cuda = False, 
-                     use_multiprocessing = False, num_threads = 0, verbose = 0):
+                     use_multiprocessing = False, num_threads = 0, verbose = 1):
 
     """ Grid search for LSTM
 
@@ -845,8 +847,8 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
         whether to generate batches in parallel. Default: False
     num_threads: int
         maximum number of processes to spin up when using generating the batches. Default: 0
-    verbose: int (0, 1, or 2)
-        verbosity mode. 0 = silent, 1 = progress bar, 2 = one line per epoch.
+    verbose: int (0 or 1)
+        verbosity mode. 0 = silent, 1 = one line per parameter combination. Default:1
 
     Returns
     -------
@@ -881,7 +883,8 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
         for i, param_comb in enumerate(grid_select):
 
             # Message at the start of each iteration
-            print(f'Iteration {i+1} out of {len(grid_select)}: {param_comb}\n')
+            if verbose == 1:
+                print(f'Iteration {i+1} out of {len(grid_select)}: {param_comb}\n')
 
             # this will contain the values that will be recorded in each row. 
             # We start by copying the parameter values
@@ -894,7 +897,8 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
 
             # Check if the current parameter combination has already been processed in the grid search
             if row_values in param_comb_sofar:
-                print(f'This parameter combination has already been processed: {param_comb}\n')
+                if verbose == 1:
+                    print(f'This parameter combination has already been processed: {param_comb}\n')
 
             else:
                 # Fit the model given the current param combination
@@ -1184,7 +1188,7 @@ def grid_search_NDL(data_train, data_valid, cue_index, outcome_index,
                     metrics = ['accuracy', 'precision', 'recall', 'f1score'], 
                     metric_average = 'macro', shuffle_epoch = False, 
                     shuffle_grid = True, num_threads = 1, chunksize = 10000, 
-                    verbose = 0):
+                    verbose = 1):
 
     """ Grid search for feedforward neural networks
 
@@ -1233,8 +1237,8 @@ def grid_search_NDL(data_train, data_valid, cue_index, outcome_index,
     chunksize : int
         number of lines to use for computing the accuracy. This is done through 
         the computation of the activation matrix for these lines. Default: 10000
-    verbose: int (0, 1, or 2)
-        verbosity mode. 0 = silent, 1 = progress bar, 2 = one line per epoch.
+    verbose: int (0 or 1)
+        verbosity mode. 0 = silent, 1 = one line per parameter combination. Default:1
 
     Returns
     -------
@@ -1269,7 +1273,8 @@ def grid_search_NDL(data_train, data_valid, cue_index, outcome_index,
         for i, param_comb in enumerate(grid_select):
 
             # Message at the start of each iteration
-            print(f'Iteration {i+1} out of {len(grid_select)}: {param_comb}\n')
+            if verbose == 1:
+                print(f'Iteration {i+1} out of {len(grid_select)}: {param_comb}\n')
 
             # this will contain the values that will be recorded in each row. 
             # We start by copying the parameter values
@@ -1282,7 +1287,8 @@ def grid_search_NDL(data_train, data_valid, cue_index, outcome_index,
 
             # Check if the current parameter combination has already been processed in the grid search
             if row_values in param_comb_sofar:
-                print(f'This parameter combination has already been processed: {param_comb}\n')
+                if verbose == 1:
+                    print(f'This parameter combination has already been processed: {param_comb}\n')
 
             else:
                 hist, model = train_NDL(data_train = data_train, 
@@ -1382,10 +1388,6 @@ def import_model(path, custom_measures = None):
         elif '__xarray_dataarray_variable__' in f.keys(): # => NDLmodel object
             with xr.open_dataarray(path) as weights_read:  
                 model = NDLmodel(weights = weights_read)
-        # elif 'weights' in f.keys(): # => NDLmodel object
-        #     model = NDLmodel(weights = 0)
-        #     for key in f.keys():
-        #         setattr(model, key, f[key].value)
         else:
             raise ValueError("Stored model should be a keras (Sequential class) or ndl (NDLmodel class) model")
     return model
