@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 from itertools import islice
 from pyndl import io
 
+from deep_text_modelling.preprocessing import IndexedFile
+
 def score_given_metric(y_true, y_pred, metric):
 
     """ calculate the performance score given a keras-defined metric
@@ -106,7 +108,7 @@ def f1score(y_true, y_pred):
     return 2 * ((pr*re) / (pr+re+K.epsilon()))
 
 def predict_proba_eventfile_FNN(model, data_test, num_cues, num_outcomes, cue_index, 
-                                outcome_index, generator, use_multiprocessing = False, 
+                                outcome_index, use_multiprocessing = False, 
                                 num_threads = 0, verbose = 0):
 
     """ extract the most likely outcomes based on a 1d-array of predicted probabilities 
@@ -124,10 +126,7 @@ def predict_proba_eventfile_FNN(model, data_test, num_cues, num_outcomes, cue_in
     cue_index: dict
         mapping from cues to indices
     outcome_index: dict
-        mapping from outcomes to indices
-    generator: class
-        use 'generator = generator_df_FNN' if the data is given as a dataframe or 
-        'generator = generator_textfile_FNN' if the data is given as an indexed file 
+        mapping from outcomes to indices 
     use_multiprocessing: Boolean
         whether to generate batches in parallel. Default: False
     num_threads: int
@@ -141,7 +140,18 @@ def predict_proba_eventfile_FNN(model, data_test, num_cues, num_outcomes, cue_in
         array containing the predicted probabilities
     """
 
-    #from deep_text_modelling.modelling import generator_textfile_FNN
+    from deep_text_modelling.modelling import generator_df_FNN, generator_textfile_FNN
+
+    ### Select the appropriate model generator based on the type of data
+    if isinstance(data_test, pd.DataFrame):     
+        generator = generator_df_FNN
+    elif isinstance(data_test, IndexedFile):
+        generator = generator_textfile_FNN
+    elif isinstance(data_test, str):
+        data_test = IndexedFile(data_test, 'gz')
+        generator = generator_textfile_FNN
+    else:
+        raise ValueError("data_test should be either a path to an event file, a dataframe or an indexed text file")
 
     test_gen = generator(data = data_test, 
                          batch_size = 1,
@@ -187,7 +197,7 @@ def predict_proba_oneevent_FNN(model, cue_seq, num_cues, cue_index):
     return proba_pred
 
 def predict_proba_eventfile_LSTM(model, data_test, num_cues, num_outcomes, cue_index, 
-                                 outcome_index, max_len, generator, use_multiprocessing = False, 
+                                 outcome_index, max_len, use_multiprocessing = False, 
                                  num_threads = 0, verbose = 0):
 
     """ extract the most likely outcomes based on a 1d-array of predicted probabilities 
@@ -208,9 +218,6 @@ def predict_proba_eventfile_LSTM(model, data_test, num_cues, num_outcomes, cue_i
         mapping from outcomes to indices
     max_len: int
         Consider only 'max_len' first tokens in a sequence
-    generator: class
-        use 'generator = generator_df_LSTM' if the data is given as a dataframe or 
-        'generator = generator_textfile_LSTM' if the data is given as an indexed file 
     use_multiprocessing: Boolean
         whether to generate batches in parallel. Default: False
     num_threads: int
@@ -224,7 +231,18 @@ def predict_proba_eventfile_LSTM(model, data_test, num_cues, num_outcomes, cue_i
         array containing the predicted probabilities
     """
 
-    #from deep_text_modelling.modelling import generator_textfile_FNN
+    from deep_text_modelling.modelling import generator_df_LSTM, generator_textfile_LSTM
+
+    ### Select the appropriate model generator based on the type of data
+    if isinstance(data_test, pd.DataFrame):     
+        generator = generator_df_LSTM
+    elif isinstance(data_test, IndexedFile):
+        generator = generator_textfile_LSTM
+    elif isinstance(data_test, str):
+        data_test = IndexedFile(data_test, 'gz')
+        generator = generator_textfile_LSTM
+    else:
+        raise ValueError("data_test should be either a path to an event file, a dataframe or an indexed text file")
 
     test_gen = generator(data = data_test, 
                          batch_size = 1,

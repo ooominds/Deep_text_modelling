@@ -30,6 +30,7 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 
 ### Import local packages
 from deep_text_modelling.evaluation import recall, precision, f1score
+from deep_text_modelling.preprocessing import df_to_gz, IndexedFile
 
 ###############
 # Tokenisation
@@ -252,8 +253,8 @@ class generator_df_FNN(keras.utils.Sequence):
         return X, Y
 
 def train_FNN(data_train, data_valid, cue_index, outcome_index, 
-              generator = generator_textfile_FNN, shuffle_epoch = False, 
-              use_multiprocessing = False, num_threads = 0, verbose = 0,
+              shuffle_epoch = False, use_multiprocessing = False, 
+              num_threads = 0, verbose = 0,
               metrics = ['accuracy', precision, recall, f1score],
               params = {'epochs': 1, # number of iterations on the full set 
                         'batch_size': 128, 
@@ -271,16 +272,13 @@ def train_FNN(data_train, data_valid, cue_index, outcome_index,
     Parameters
     ----------
     data_train: dataframe or class
-        dataframe or indexed text file containing training data
+        dataframe, path to a '.gz' event file or indexed text file containing training data
     data_valid: class or dataframe
-        dataframe or indexed text file containing validation data
+        dataframe, path to a '.gz' event file or indexed text file containing validation data
     cue_index: dict
         mapping from cues to indices. The dictionary should include only the cues to keep in the data
     outcome_index: dict
         mapping from outcomes to indices. The dictionary should include only the outcomes to keep in the data
-    generator: class
-        use 'generator = generator_df_FNN' if the data is given as a dataframe or 
-        'generator = generator_textfile_FNN' if the data is given as an indexed file 
     shuffle_epoch: Boolean
         whether to shuffle the data after every epoch
     use_multiprocessing: Boolean
@@ -313,21 +311,43 @@ def train_FNN(data_train, data_valid, cue_index, outcome_index,
     num_cues = len(cue_index)
     num_outcomes = len(outcome_index)
 
+    ### Select the appropriate model generator based on the type of data
+    # Training data
+    if isinstance(data_train, pd.DataFrame):     
+        generator_train = generator_df_FNN
+    elif isinstance(data_train, IndexedFile):
+        generator_train = generator_textfile_FNN
+    elif isinstance(data_train, str):
+        data_train = IndexedFile(data_train, 'gz')
+        generator_train = generator_textfile_FNN
+    else:
+        raise ValueError("data_train should be either a path to an event file, a dataframe or an indexed text file")
+    # Validation data
+    if isinstance(data_valid, pd.DataFrame):     
+        generator_valid = generator_df_FNN
+    elif isinstance(data_valid, IndexedFile):
+        generator_valid = generator_textfile_FNN
+    elif isinstance(data_valid, str):
+        data_valid = IndexedFile(data_valid, 'gz')
+        generator_valid = generator_textfile_FNN
+    else:
+        raise ValueError("data_valid should be either a path to an event file, a dataframe or an indexed text file")
+
     ### Initiate the generators for the train, valid and test data
-    train_gen = generator(data = data_train, 
-                          batch_size = params['batch_size'],
-                          num_cues = num_cues,
-                          num_outcomes = num_outcomes,
-                          cue_index = cue_index,
-                          outcome_index = outcome_index,
-                          shuffle_epoch = shuffle_epoch)
-    valid_gen = generator(data = data_valid, 
-                          batch_size = params['batch_size'],
-                          num_cues = num_cues,
-                          num_outcomes = num_outcomes,
-                          cue_index = cue_index,
-                          outcome_index = outcome_index,
-                          shuffle_epoch = shuffle_epoch)
+    train_gen = generator_train(data = data_train, 
+                                batch_size = params['batch_size'],
+                                num_cues = num_cues,
+                                num_outcomes = num_outcomes,
+                                cue_index = cue_index,
+                                outcome_index = outcome_index,
+                                shuffle_epoch = shuffle_epoch)
+    valid_gen = generator_valid(data = data_valid, 
+                                batch_size = params['batch_size'],
+                                num_cues = num_cues,
+                                num_outcomes = num_outcomes,
+                                cue_index = cue_index,
+                                outcome_index = outcome_index,
+                                shuffle_epoch = shuffle_epoch)
 
     ### Initialise the model
     model = Sequential()  
@@ -381,7 +401,7 @@ def train_FNN(data_train, data_valid, cue_index, outcome_index,
     return hist, model
 
 def grid_search_FNN(data_train, data_valid, cue_index, outcome_index, 
-                    generator, params, prop_grid, tuning_output_file,         
+                    params, prop_grid, tuning_output_file,         
                     shuffle_epoch = False, shuffle_grid = True, 
                     use_multiprocessing = False, num_threads = 0, verbose = 1):
 
@@ -390,16 +410,13 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
     Parameters
     ----------
     data_train: dataframe or class
-        dataframe or indexed text file containing training data
+        dataframe, path to a '.gz' event file or indexed text file containing training data
     data_valid: class or dataframe
-        dataframe or indexed text file containing validation data
+        dataframe, path to a '.gz' event file or indexed text file containing validation data
     cue_index: dict
         mapping from cues to indices. The dictionary should include only the cues to keep in the data
     outcome_index: dict
         mapping from outcomes to indices. The dictionary should include only the outcomes to keep in the data
-    generator: class
-        use 'generator = generator_df_FNN' if the data is given as a dataframe or 
-        'generator = generator_textfile_FNN' if the data is given as an indexed file 
     params: dict of lists
         model parameters:
         'epochs'
@@ -433,6 +450,18 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
     None
         save csv files
     """
+    
+    ### Select the appropriate model generator based on the type of data
+    # Training data
+    if ((not isinstance(data_train, pd.DataFrame)) and 
+        (not isinstance(data_train, IndexedFile)) and 
+        (not isinstance(data_train, str))):
+        raise ValueError("data_train should be either a path to an event file, a dataframe or an indexed text file")
+    # Validation data
+    if ((not isinstance(data_train, pd.DataFrame)) and 
+        (not isinstance(data_train, IndexedFile)) and 
+        (not isinstance(data_train, str))):
+        raise ValueError("data_valid should be either a path to an event file, a dataframe or an indexed text file")
 
     # Create a list of dictionaries giving all possible parameter combinations
     keys, values = zip(*params.items())
@@ -479,7 +508,6 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
                                         data_valid = data_valid, 
                                         cue_index = cue_index, 
                                         outcome_index = outcome_index, 
-                                        generator = generator, 
                                         shuffle_epoch = shuffle_epoch, 
                                         use_multiprocessing = use_multiprocessing, 
                                         num_threads = num_threads, 
@@ -684,9 +712,8 @@ class generator_df_LSTM(keras.utils.Sequence):
         return X, Y
 
 def train_LSTM(data_train, data_valid, cue_index, outcome_index, max_len, 
-               generator = generator_textfile_LSTM, shuffle_epoch = False, 
-               use_cuda = False, use_multiprocessing = False, 
-               num_threads = 0, verbose = 0,
+               shuffle_epoch = False, use_cuda = False, 
+               use_multiprocessing = False, num_threads = 0, verbose = 0,
                metrics = ['accuracy', precision, recall, f1score],
                params = {'epochs': 1, # number of iterations on the full set 
                          'batch_size': 128, 
@@ -702,18 +729,15 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
     Parameters
     ----------
     data_train: dataframe or class
-        dataframe or indexed text file containing training data
+        dataframe, path to a '.gz' event file or indexed text file containing training data
     data_valid: class or dataframe
-        dataframe or indexed text file containing validation data
+        dataframe, path to a '.gz' event file or indexed text file containing validation data
     cue_index: dict
         mapping from cues to indices. The dictionary should include only the cues to keep in the data
     outcome_index: dict
         mapping from outcomes to indices. The dictionary should include only the outcomes to keep in the data
     max_len: int
-        Consider only 'max_len' first tokens in a sequence
-    generator: class
-        use 'generator = generator_df_LSTM' if the data is given as a dataframe or 
-        'generator = generator_textfile_LSTM' if the data is given as an indexed file    
+        Consider only 'max_len' first tokens in a sequence  
     shuffle_epoch: Boolean
         whether to shuffle the data after every epoch
     use_cuda: Boolean
@@ -747,23 +771,45 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
     num_cues = len(cue_index)
     num_outcomes = len(outcome_index)
 
+    ### Select the appropriate model generator based on the type of data
+    # Training data
+    if isinstance(data_train, pd.DataFrame):     
+        generator_train = generator_df_LSTM
+    elif isinstance(data_train, IndexedFile):
+        generator_train = generator_textfile_LSTM
+    elif isinstance(data_train, str):
+        data_train = IndexedFile(data_train, 'gz')
+        generator_train = generator_textfile_LSTM
+    else:
+        raise ValueError("data_train should be either a path to an event file, a dataframe or an indexed text file")
+    # Validation data
+    if isinstance(data_valid, pd.DataFrame):     
+        generator_valid = generator_df_LSTM
+    elif isinstance(data_valid, IndexedFile):
+        generator_valid = generator_textfile_LSTM
+    elif isinstance(data_valid, str):
+        data_valid = IndexedFile(data_valid, 'gz')
+        generator_valid = generator_textfile_LSTM
+    else:
+        raise ValueError("data_valid should be either a path to an event file, a dataframe or an indexed text file")
+
     ### Initiate the generators for the train, valid and test data
-    train_gen = generator(data = data_train, 
-                          batch_size = params['batch_size'],
-                          num_cues = num_cues,
-                          num_outcomes = num_outcomes,
-                          cue_index = cue_index,
-                          outcome_index = outcome_index,
-                          max_len = max_len,
-                          shuffle_epoch = shuffle_epoch)
-    valid_gen = generator(data = data_valid, 
-                          batch_size = params['batch_size'],
-                          num_cues = num_cues,
-                          num_outcomes = num_outcomes,
-                          cue_index = cue_index,
-                          outcome_index = outcome_index,
-                          max_len = max_len,
-                          shuffle_epoch = shuffle_epoch)
+    train_gen = generator_train(data = data_train, 
+                                batch_size = params['batch_size'],
+                                num_cues = num_cues,
+                                num_outcomes = num_outcomes,
+                                cue_index = cue_index,
+                                outcome_index = outcome_index,
+                                max_len = max_len,
+                                shuffle_epoch = shuffle_epoch)
+    valid_gen = generator_valid(data = data_valid, 
+                                batch_size = params['batch_size'],
+                                num_cues = num_cues,
+                                num_outcomes = num_outcomes,
+                                cue_index = cue_index,
+                                outcome_index = outcome_index,
+                                max_len = max_len,
+                                shuffle_epoch = shuffle_epoch)
 
     ### Initialise the model
     model = Sequential()  
@@ -800,27 +846,24 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
     return hist, model
  
 def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
-                     generator, params, prop_grid, tuning_output_file, 
-                     shuffle_epoch = False, shuffle_grid = True, use_cuda = False, 
-                     use_multiprocessing = False, num_threads = 0, verbose = 1):
+                     params, prop_grid, tuning_output_file, shuffle_epoch = False, 
+                     shuffle_grid = True, use_cuda = False, use_multiprocessing = False, 
+                     num_threads = 0, verbose = 1):
 
     """ Grid search for LSTM
 
     Parameters
     ----------
     data_train: dataframe or class
-        dataframe or indexed text file containing training data
+        dataframe, path to a '.gz' event file or indexed text file containing training data
     data_valid: class or dataframe
-        dataframe or indexed text file containing validation data
+        dataframe, path to a '.gz' event file or indexed text file containing validation data
     cue_index: dict
         mapping from cues to indices. The dictionary should include only the cues to keep in the data
     outcome_index: dict
         mapping from outcomes to indices. The dictionary should include only the outcomes to keep in the data
     max_len: int
-        Consider only 'max_len' first tokens in a sequence
-    generator: class
-        use 'generator = generator_df_LSTM' if the data is given as a dataframe or 
-        'generator = generator_textfile_LSTM' if the data is given as an indexed file    
+        Consider only 'max_len' first tokens in a sequence 
     params: dict
         model parameters:
         'epochs'
@@ -855,6 +898,18 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
     None
         save csv files
     """
+
+    ### Select the appropriate model generator based on the type of data
+    # Training data
+    if ((not isinstance(data_train, pd.DataFrame)) and 
+        (not isinstance(data_train, IndexedFile)) and 
+        (not isinstance(data_train, str))):
+        raise ValueError("data_train should be either a path to an event file, a dataframe or an indexed text file")
+    # Validation data
+    if ((not isinstance(data_train, pd.DataFrame)) and 
+        (not isinstance(data_train, IndexedFile)) and 
+        (not isinstance(data_train, str))):
+        raise ValueError("data_valid should be either a path to an event file, a dataframe or an indexed text file")
 
     ### Create a list of dictionaries giving all possible parameter combinations
     keys, values = zip(*params.items())
@@ -907,7 +962,6 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
                                         cue_index = cue_index, 
                                         outcome_index = outcome_index, 
                                         max_len = max_len,
-                                        generator = generator,
                                         shuffle_epoch = shuffle_epoch, 
                                         use_cuda = use_cuda, 
                                         use_multiprocessing = use_multiprocessing, 
@@ -1246,6 +1300,14 @@ def grid_search_NDL(data_train, data_valid, cue_index, outcome_index,
         save csv files
     """
 
+    ### Select the appropriate model generator based on the type of data
+    # Training data
+    if ((not isinstance(data_train, pd.DataFrame)) and (not isinstance(data_train, str))):
+        raise ValueError("data_train should be either a path to an event file or a dataframe")
+    # Validation data
+    if ((not isinstance(data_train, pd.DataFrame)) and (not isinstance(data_train, str))):
+        raise ValueError("data_valid should be either a path to an event file or a dataframe")
+
     ### Create a list of dictionaries giving all possible parameter combinations
     keys, values = zip(*params.items())
     grid_full = [dict(zip(keys, v)) for v in itertools.product(*values)]
@@ -1355,13 +1417,13 @@ def export_model(model, path):
     """
 
     # Save model as an hdf5 file
-    if isinstance(model, NDLmodel):  
+    if isinstance(model, Sequential):
+        model.save(path)
+    elif isinstance(model, NDLmodel):  
         model.weights.to_netcdf(path) # Only the weight matrix is saved 
         # with h5py.File(path, 'w') as f:
         #     for item in vars(model).items():
         #         f.create_dataset(item[0], data = item[1])
-    elif isinstance(model, Sequential):
-        model.save(path)
     else: 
         raise ValueError("model should be a keras (Sequential class) or ndl (NDLmodel class) model")
 
