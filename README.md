@@ -61,11 +61,11 @@ DTM contains some useful functions for assessing your models. These include:
 
 ### Binary classification (predicting gender from name)
 
-This is a very simple example that shows how to build FNN, LSTM and NDL models, and compare them on the problem of predicting the gender of a person (outcome) based on the letters in his or her name (cues). In this case, only one of two outcomes is possible for each event. [[notebook]](https://nbviewer.jupyter.org/github/Adnane017/Deep_text_modelling/blob/master/illustrative_examples/names/names.ipynb)
+This is a very simple example that shows how to build FNN, LSTM and NDL models, and compare them on the problem of predicting the gender of a person (outcome) based on the letters in his or her name (cues). In this case, only one of two outcomes is possible for each event. [[notebook]](https://nbviewer.jupyter.org/gist/Adnane017/b4f66f33b248653808868345a0612434)
 
 ### Multiclass classification (predicting English tense from context)
 
-Here, we show how to apply the models to the problem of predicting English tense (outcome) from the words surrounding the main verb in a sentence (cues). In this case, only one outcome out of seven is possible for each event. [[notebook]](https://nbviewer.jupyter.org/github/Adnane017/Deep_text_modelling/blob/master/illustrative_examples/tenses/tenses.ipynb)
+Here, we show how to apply the models to the problem of predicting English tense (outcome) from the words surrounding the main verb in a sentence (cues). In this case, only one outcome out of seven is possible for each event. [[notebook]](https://nbviewer.jupyter.org/gist/Adnane017/dbdc2659b4b53756aab209237e2f407e)
 
 ### Multiclass multilabel classification (predicting words from orthographic cues)
 
