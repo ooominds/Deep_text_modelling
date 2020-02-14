@@ -1361,7 +1361,7 @@ def grid_search_NDL(data_train, data_valid, cue_index, outcome_index,
                                         shuffle_epoch = shuffle_epoch, 
                                         num_threads = num_threads,
                                         chunksize = chunksize, 
-                                        verbose = verbose,
+                                        verbose = 0,
                                         metrics = metrics, 
                                         metric_average = metric_average,
                                         params = param_comb)
