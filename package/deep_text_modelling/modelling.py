@@ -1040,10 +1040,10 @@ class NDLmodel():
         # self.activations_valid = activations_valid
         #self.performance_hist = performance_hist
 
-def train_NDL(data_train, data_valid, cue_index, outcome_index, temp_dir,
+def train_NDL(data_train, data_valid, temp_dir, cue_index = None, outcome_index = None,
               shuffle_epoch = False, num_threads = 1, chunksize = 10000, verbose = 1, 
               metrics = ['accuracy', 'precision', 'recall', 'f1score'], metric_average = 'macro',
-              params = {'epochs': 1, # number of iterations on the full set 
+              params = {'epochs': 1, # number of iterations over the full set 
                         'lr': 0.0001}):
 
     """ Train a native discriminative learning model
@@ -1054,12 +1054,12 @@ def train_NDL(data_train, data_valid, cue_index, outcome_index, temp_dir,
         dataframe or path to the file containing training data
     data_valid: class or dataframe
         dataframe or path to the file containing validation data
+    temp_dir: str
+        directory where to store temporary files while training NDL
     cue_index: dict
         mapping from cues to indices. The dictionary should include only the cues to keep in the data
     outcome_index: dict
         mapping from outcomes to indices. The dictionary should include only the outcomes to keep in the data
-    temp_dir: str
-        directory where to store temporary files while training NDL
     shuffle_epoch: Boolean
         whether to shuffle the data after every epoch
     use_multiprocessing: Boolean
@@ -1120,9 +1120,19 @@ def train_NDL(data_train, data_valid, cue_index, outcome_index, temp_dir,
     filtered_events_train_path = os.path.join(temp_dir, 'filtered_events_train.gz')  
     filtered_events_valid_path = os.path.join(temp_dir, 'filtered_events_valid.gz')  
 
-    ### Filter the event files by retaining only the cues and outcomes that are in the index system (most frequent tokens)
-    cues_to_keep = [cue for cue in cue_index.keys()]
-    outcomes_to_keep = [outcome for outcome in outcome_index.keys()]
+    ### Filter the event files by retaining only the cues and outcomes that are in the index system (e.g. most frequent tokens) 
+    ### if these index systems are provided by the user. Otherwise, use all cues and/or outcomes
+    # Cues
+    if cue_index:
+        cues_to_keep = [cue for cue in cue_index.keys()]
+    else:
+        cues_to_keep = 'all'
+    # Outcomes
+    if outcome_index:
+        outcomes_to_keep = [outcome for outcome in outcome_index.keys()]
+    else:
+        outcomes_to_keep = 'all'
+
     # Train set 
     filter_event_file(events_train_path,
                       filtered_events_train_path,
@@ -1237,14 +1247,14 @@ def train_NDL(data_train, data_valid, cue_index, outcome_index, temp_dir,
    
     return hist, model
 
-def grid_search_NDL(data_train, data_valid, cue_index, outcome_index, 
-                    temp_dir, params, prop_grid, tuning_output_file,     
+def grid_search_NDL(data_train, data_valid, temp_dir, params, prop_grid, 
+                    tuning_output_file, cue_index = None, outcome_index = None,    
                     metrics = ['accuracy', 'precision', 'recall', 'f1score'], 
                     metric_average = 'macro', shuffle_epoch = False, 
                     shuffle_grid = True, num_threads = 1, chunksize = 10000, 
                     verbose = 1):
 
-    """ Grid search for feedforward neural networks
+    """ Grid search for the naive discriminative learning model
 
     Parameters
     ----------
@@ -1252,10 +1262,6 @@ def grid_search_NDL(data_train, data_valid, cue_index, outcome_index,
         dataframe or path to the file containing training data
     data_valid: class or dataframe
         dataframe or indexed text file containing validation data
-    cue_index: dict
-        mapping from cues to indices. The dictionary should include only the cues to keep in the data
-    outcome_index: dict
-        mapping from outcomes to indices. The dictionary should include only the outcomes to keep in the data
     temp_dir: str
         directory where to store temporary files while training NDL
     params: dict of lists
@@ -1266,6 +1272,10 @@ def grid_search_NDL(data_train, data_valid, cue_index, outcome_index,
         proportion of the grid combinations to sample 
     tuning_output_file: str
         path of the csv file where the grid search results will be stored
+    cue_index: dict
+        mapping from cues to indices. The dictionary should include only the cues to keep in the data
+    outcome_index: dict
+        mapping from outcomes to indices. The dictionary should include only the outcomes to keep in the data
     metrics: list
         for now only ['accuracy', 'precision', 'recall', 'f1score'] is accepted
     metric_average: str
@@ -1354,10 +1364,10 @@ def grid_search_NDL(data_train, data_valid, cue_index, outcome_index,
 
             else:
                 hist, model = train_NDL(data_train = data_train, 
-                                        data_valid = data_valid, 
-                                        cue_index = cue_index, 
-                                        outcome_index = outcome_index, 
+                                        data_valid = data_valid,  
                                         temp_dir = temp_dir,
+                                        cue_index = cue_index, 
+                                        outcome_index = outcome_index,
                                         shuffle_epoch = shuffle_epoch, 
                                         num_threads = num_threads,
                                         chunksize = chunksize, 
