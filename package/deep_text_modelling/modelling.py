@@ -1168,61 +1168,91 @@ def train_NDL(data_train, data_valid, temp_dir, cue_index = None, outcome_index 
         # Record start time
         start = time.time()
 
-        # Train ndl to get the weight matrix 
-        weights = ndl(events = filtered_events_train_path,
-                      alpha = params['lr'], 
-                      betas = (1, 1),
-                      method = "openmp",
-                      weights = weights,
-                      number_of_threads = num_threads,
-                      remove_duplicates = True,
-                      temporary_directory = temp_dir,
-                      verbose = False)
+        if ((j == 1) or (not np.isnan(weights).any())): # if no nan values in the weight matrix (i.e. no divergence problem):
 
-        # Predicted outcomes from the activations
-        y_train_pred = predict_outcomes_NDL(data_test = filtered_events_train_path, 
-                                            weights = weights, 
-                                            temp_dir = temp_dir,
-                                            chunksize = chunksize, 
-                                            num_threads = num_threads)
-        y_valid_pred = predict_outcomes_NDL(data_test = filtered_events_valid_path, 
-                                            weights = weights, 
-                                            temp_dir = temp_dir,
-                                            chunksize = chunksize, 
-                                            num_threads = num_threads)
+            epoch_no_diverg = j # Keep track of the last epoch without a divergence problem
 
-        ### True outcomes 
-        # tain set 
-        events_train_df = pd.read_csv(filtered_events_train_path, header = 0, sep='\t', quotechar='"')
-        y_train_true = events_train_df['outcomes'].tolist()    
-        # validation set 
-        events_valid_df = pd.read_csv(filtered_events_valid_path, header = 0, sep='\t', quotechar='"')
-        y_valid_true = events_valid_df['outcomes'].tolist()
-        
-        # Compute performance scores for the different metrics
-        # accuracy
-        acc_j = accuracy_score(y_train_true, y_train_pred)
-        acc_hist.append(acc_j)
-        val_acc_j = accuracy_score(y_valid_true, y_valid_pred)
-        val_acc_hist.append(val_acc_j)
+            # Train ndl to get the weight matrix 
+            weights = ndl(events = filtered_events_train_path,
+                        alpha = params['lr'], 
+                        betas = (1, 1),
+                        method = "openmp",
+                        weights = weights,
+                        number_of_threads = num_threads,
+                        remove_duplicates = True,
+                        temporary_directory = temp_dir,
+                        verbose = False)
+      
+            # Predicted outcomes from the activations
+            y_train_pred = predict_outcomes_NDL(data_test = filtered_events_train_path, 
+                                                weights = weights, 
+                                                temp_dir = temp_dir,
+                                                chunksize = chunksize, 
+                                                num_threads = num_threads)
+            y_valid_pred = predict_outcomes_NDL(data_test = filtered_events_valid_path, 
+                                                weights = weights, 
+                                                temp_dir = temp_dir,
+                                                chunksize = chunksize, 
+                                                num_threads = num_threads)
 
-        # precision
-        precision_j = precision_score(y_train_true, y_train_pred, average = metric_average)
-        precision_hist.append(precision_j)
-        val_precision_j = precision_score(y_valid_true, y_valid_pred, average = metric_average)
-        val_precision_hist.append(val_precision_j)
+            ### True outcomes 
+            # tain set 
+            events_train_df = pd.read_csv(filtered_events_train_path, header = 0, sep='\t', quotechar='"')
+            y_train_true = events_train_df['outcomes'].tolist()    
+            # validation set 
+            events_valid_df = pd.read_csv(filtered_events_valid_path, header = 0, sep='\t', quotechar='"')
+            y_valid_true = events_valid_df['outcomes'].tolist()
+            
+            # Compute performance scores for the different metrics
+            # accuracy
+            acc_j = accuracy_score(y_train_true, y_train_pred)
+            acc_hist.append(acc_j)
+            val_acc_j = accuracy_score(y_valid_true, y_valid_pred)
+            val_acc_hist.append(val_acc_j)
 
-        # recall
-        recall_j = recall_score(y_train_true, y_train_pred, average = metric_average)
-        recall_hist.append(recall_j)
-        val_recall_j = recall_score(y_valid_true, y_valid_pred, average = metric_average)
-        val_recall_hist.append(val_recall_j)
+            # precision
+            precision_j = precision_score(y_train_true, y_train_pred, average = metric_average)
+            precision_hist.append(precision_j)
+            val_precision_j = precision_score(y_valid_true, y_valid_pred, average = metric_average)
+            val_precision_hist.append(val_precision_j)
 
-        # F1-score
-        f1score_j = f1_score(y_train_true, y_train_pred, average = metric_average)
-        f1score_hist.append(f1score_j)
-        val_f1score_j = f1_score(y_valid_true, y_valid_pred, average = metric_average)
-        val_f1score_hist.append(val_f1score_j)  
+            # recall
+            recall_j = recall_score(y_train_true, y_train_pred, average = metric_average)
+            recall_hist.append(recall_j)
+            val_recall_j = recall_score(y_valid_true, y_valid_pred, average = metric_average)
+            val_recall_hist.append(val_recall_j)
+
+            # F1-score
+            f1score_j = f1_score(y_train_true, y_train_pred, average = metric_average)
+            f1score_hist.append(f1score_j)
+            val_f1score_j = f1_score(y_valid_true, y_valid_pred, average = metric_average)
+            val_f1score_hist.append(val_f1score_j)  
+
+        else: # Measures will be set to np.nan if learning has diverged and weights won't be updated
+
+            # accuracy
+            acc_j = np.nan
+            acc_hist.append(acc_j)
+            val_acc_j = np.nan
+            val_acc_hist.append(val_acc_j)
+
+            # precision
+            precision_j = np.nan
+            precision_hist.append(precision_j)
+            val_precision_j = np.nan
+            val_precision_hist.append(val_precision_j)
+
+            # recall
+            recall_j = np.nan
+            recall_hist.append(recall_j)
+            val_recall_j = np.nan
+            val_recall_hist.append(val_recall_j)
+
+            # F1-score
+            f1score_j = np.nan
+            f1score_hist.append(f1score_j)
+            val_f1score_j = np.nan
+            val_f1score_hist.append(val_f1score_j)  
 
         # Display progress message  
         if verbose == 1:
@@ -1233,6 +1263,9 @@ def train_NDL(data_train, data_valid, temp_dir, cue_index = None, outcome_index 
 
     ### Model object
     model = NDLmodel(weights)
+
+    if (j>1 and np.isnan(weights).any()): # display a message to notify about a divergence problem:
+        sys.stdout.write('Warning: learning diverged in epoch %d!!!\n' % ((epoch_no_diverg+1)))
 
     ### Fit history object
     hist = {'acc': acc_hist,
