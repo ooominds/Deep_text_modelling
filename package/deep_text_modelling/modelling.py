@@ -253,8 +253,7 @@ class generator_df_FNN(keras.utils.Sequence):
         return X, Y
 
 def train_FNN(data_train, data_valid, cue_index, outcome_index, 
-              shuffle_epoch = False, use_multiprocessing = False, 
-              num_threads = 0, verbose = 0,
+              shuffle_epoch = False, num_threads = 1, verbose = 0,
               metrics = ['accuracy', precision, recall, f1score],
               params = {'epochs': 1, # number of iterations on the full set 
                         'batch_size': 128, 
@@ -281,10 +280,8 @@ def train_FNN(data_train, data_valid, cue_index, outcome_index,
         mapping from outcomes to indices. The dictionary should include only the outcomes to keep in the data
     shuffle_epoch: Boolean
         whether to shuffle the data after every epoch
-    use_multiprocessing: Boolean
-        whether to generate batches in parallel. Default: False
     num_threads: int
-        maximum number of processes to spin up when using generating the batches. Default: 0
+        maximum number of processes to use - it should be >= 1. Default: 1
     verbose: int (0, 1, or 2)
         verbosity mode. 0 = silent, 1 = progress bar, 2 = one line per epoch. Default: 0
     metrics: list
@@ -393,9 +390,9 @@ def train_FNN(data_train, data_valid, cue_index, outcome_index,
     out = model.fit_generator(generator = train_gen,
                               validation_data = valid_gen,
                               epochs = params['epochs'],
-                              use_multiprocessing = use_multiprocessing,
+                              use_multiprocessing = True,
                               verbose = verbose,
-                              workers = num_threads)
+                              workers = num_threads-1)
     hist = out.history
     
     return hist, model
@@ -403,7 +400,7 @@ def train_FNN(data_train, data_valid, cue_index, outcome_index,
 def grid_search_FNN(data_train, data_valid, cue_index, outcome_index, 
                     params, prop_grid, tuning_output_file,         
                     shuffle_epoch = False, shuffle_grid = True, 
-                    use_multiprocessing = False, num_threads = 0, verbose = 1):
+                    num_threads = 1, verbose = 1):
 
     """ Grid search for feedforward neural networks
 
@@ -438,10 +435,8 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
     shuffle_grid: Boolean
         whether to shuffle the parameter grid or respect the same order of parameters. Default: True
         provided in `params'
-    use_multiprocessing: Boolean
-        whether to generate batches in parallel. Default: False
     num_threads: int
-        maximum number of processes to spin up when using generating the batches. Default: 0
+        maximum number of processes to use - it should be >= 1. Default: 1
     verbose: int (0 or 1)
         verbosity mode. 0 = silent, 1 = one line per parameter combination. Default:1
 
@@ -509,7 +504,6 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
                                         cue_index = cue_index, 
                                         outcome_index = outcome_index, 
                                         shuffle_epoch = shuffle_epoch, 
-                                        use_multiprocessing = use_multiprocessing, 
                                         num_threads = num_threads, 
                                         verbose = 0,
                                         metrics = ['accuracy', precision, recall, f1score],
@@ -713,7 +707,7 @@ class generator_df_LSTM(keras.utils.Sequence):
 
 def train_LSTM(data_train, data_valid, cue_index, outcome_index, max_len, 
                shuffle_epoch = False, use_cuda = False, 
-               use_multiprocessing = False, num_threads = 0, verbose = 0,
+               num_threads = 1, verbose = 0,
                metrics = ['accuracy', precision, recall, f1score],
                params = {'epochs': 1, # number of iterations on the full set 
                          'batch_size': 128, 
@@ -743,10 +737,8 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
     use_cuda: Boolean
         whether to use the cuda optimised LSTM layer for faster training. Use only if 
         an Nvidia GPU is available with CUDA installed
-    use_multiprocessing: Boolean
-        whether to generate batches in parallel. Default: False
     num_threads: int
-        maximum number of processes to spin up when using generating the batches. Default: 0
+        maximum number of processes to use - it should be >= 1. Default: 1
     verbose: int (0, 1, or 2)
         verbosity mode. 0 = silent, 1 = progress bar, 2 = one line per epoch.
     metrics: list
@@ -837,9 +829,9 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
     out = model.fit_generator(generator = train_gen,
                               validation_data = valid_gen,
                               epochs = params['epochs'],
-                              use_multiprocessing = use_multiprocessing,
+                              use_multiprocessing = True,
                               verbose = verbose,
-                              workers = num_threads)
+                              workers = num_threads-1)
 
     hist = out.history    
 
@@ -847,8 +839,7 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
  
 def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
                      params, prop_grid, tuning_output_file, shuffle_epoch = False, 
-                     shuffle_grid = True, use_cuda = False, use_multiprocessing = False, 
-                     num_threads = 0, verbose = 1):
+                     shuffle_grid = True, use_cuda = False, num_threads = 1, verbose = 1):
 
     """ Grid search for LSTM
 
@@ -886,10 +877,8 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
     use_cuda: Boolean
         whether to use the cuda optimised LSTM layer for faster training. Use only if 
         an Nvidia GPU is available with CUDA installed
-    use_multiprocessing: Boolean
-        whether to generate batches in parallel. Default: False
     num_threads: int
-        maximum number of processes to spin up when using generating the batches. Default: 0
+        maximum number of processes to use - it should be >= 1. Default: 1
     verbose: int (0 or 1)
         verbosity mode. 0 = silent, 1 = one line per parameter combination. Default:1
 
@@ -964,7 +953,6 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
                                         max_len = max_len,
                                         shuffle_epoch = shuffle_epoch, 
                                         use_cuda = use_cuda, 
-                                        use_multiprocessing = use_multiprocessing, 
                                         num_threads = num_threads, 
                                         verbose = 0,
                                         metrics = ['accuracy', precision, recall, f1score],
@@ -1062,10 +1050,8 @@ def train_NDL(data_train, data_valid, temp_dir, cue_index = None, outcome_index 
         mapping from outcomes to indices. The dictionary should include only the outcomes to keep in the data
     shuffle_epoch: Boolean
         whether to shuffle the data after every epoch
-    use_multiprocessing: Boolean
-        whether to generate batches in parallel. Default: False
     num_threads: int
-        maximum number of processes to use when training NDL. Default: 1
+        maximum number of processes to use - it should be >= 1. Default: 1
     chunksize : int
         number of lines to use for computing the accuracy. This is done through 
         the computation of the activation matrix for these lines. Default: 10000 
