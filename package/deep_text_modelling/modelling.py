@@ -11,6 +11,7 @@ import json
 import os
 import time
 import h5py
+import shutil
 
 import keras
 from keras.models import Sequential, load_model
@@ -254,7 +255,7 @@ class generator_df_FNN(keras.utils.Sequence):
 
 def train_FNN(data_train, data_valid, cue_index, outcome_index, 
               shuffle_epoch = False, num_threads = 1, verbose = 0,
-              metrics = ['accuracy', precision, recall, f1score],
+              metrics = ['accuracy', 'precision', 'recall', 'f1score'],
               params = {'epochs': 1, # number of iterations on the full set 
                         'batch_size': 128, 
                         'hidden_layers': 0, # number of hidden layers 
@@ -329,6 +330,15 @@ def train_FNN(data_train, data_valid, cue_index, outcome_index,
         generator_valid = generator_textfile_FNN
     else:
         raise ValueError("data_valid should be either a path to an event file, a dataframe or an indexed text file")
+
+    # Convert the metric list to a list that can be understood by the FNN model
+    for i, m in enumerate(metrics):
+        if m == 'precision':
+            metrics[i] = precision
+        elif m == 'recall':
+            metrics[i] = recall
+        elif m == 'f1score':
+            metrics[i] = f1score
 
     ### Initiate the generators for the train, valid and test data
     train_gen = generator_train(data = data_train, 
@@ -506,7 +516,7 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
                                         shuffle_epoch = shuffle_epoch, 
                                         num_threads = num_threads, 
                                         verbose = 0,
-                                        metrics = ['accuracy', precision, recall, f1score],
+                                        metrics = ['accuracy', 'precision', 'recall', 'f1score'],
                                         params = param_comb)
 
                 # Get index of epochs in the 'param_comb' dictionary
@@ -708,7 +718,7 @@ class generator_df_LSTM(keras.utils.Sequence):
 def train_LSTM(data_train, data_valid, cue_index, outcome_index, max_len, 
                shuffle_epoch = False, use_cuda = False, 
                num_threads = 1, verbose = 0,
-               metrics = ['accuracy', precision, recall, f1score],
+               metrics = ['accuracy', 'precision', 'recall', 'f1score'],
                params = {'epochs': 1, # number of iterations on the full set 
                          'batch_size': 128, 
                          'hidden_neuron':64, # number of neurons in the input layer 
@@ -784,6 +794,15 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
         generator_valid = generator_textfile_LSTM
     else:
         raise ValueError("data_valid should be either a path to an event file, a dataframe or an indexed text file")
+
+    # Convert the metric list to a list that can be understood by the FNN model
+    for i, m in enumerate(metrics):
+        if m == 'precision':
+            metrics[i] = precision
+        elif m == 'recall':
+            metrics[i] = recall
+        elif m == 'f1score':
+            metrics[i] = f1score
 
     ### Initiate the generators for the train, valid and test data
     train_gen = generator_train(data = data_train, 
@@ -947,16 +966,16 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
             else:
                 # Fit the model given the current param combination
                 hist, model = train_LSTM(data_train = data_train, 
-                                        data_valid = data_valid, 
-                                        cue_index = cue_index, 
-                                        outcome_index = outcome_index, 
-                                        max_len = max_len,
-                                        shuffle_epoch = shuffle_epoch, 
-                                        use_cuda = use_cuda, 
-                                        num_threads = num_threads, 
-                                        verbose = 0,
-                                        metrics = ['accuracy', precision, recall, f1score],
-                                        params = param_comb)
+                                         data_valid = data_valid, 
+                                         cue_index = cue_index, 
+                                         outcome_index = outcome_index, 
+                                         max_len = max_len,
+                                         shuffle_epoch = shuffle_epoch, 
+                                         use_cuda = use_cuda, 
+                                         num_threads = num_threads, 
+                                         verbose = 0,
+                                         metrics = ['accuracy', 'precision', 'recall', 'f1score'],
+                                         params = param_comb)
 
                 ### Export the results to a csv file
                 for j in range(param_comb['epochs']):
@@ -1028,8 +1047,9 @@ class NDLmodel():
         # self.activations_valid = activations_valid
         #self.performance_hist = performance_hist
 
-def train_NDL(data_train, data_valid, temp_dir, cue_index = None, outcome_index = None,
+def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
               shuffle_epoch = False, num_threads = 1, chunksize = 10000, verbose = 1, 
+              temp_dir = os.path.join(os.getcwd(), 'TEMP_TRAIN_DIRECTORY'), remove_temp_dir = True,
               metrics = ['accuracy', 'precision', 'recall', 'f1score'], metric_average = 'macro',
               params = {'epochs': 1, # number of iterations over the full set 
                         'lr': 0.0001}):
@@ -1042,12 +1062,12 @@ def train_NDL(data_train, data_valid, temp_dir, cue_index = None, outcome_index 
         dataframe or path to the file containing training data
     data_valid: class or dataframe
         dataframe or path to the file containing validation data
-    temp_dir: str
-        directory where to store temporary files while training NDL
-    cue_index: dict
-        mapping from cues to indices. The dictionary should include only the cues to keep in the data
-    outcome_index: dict
-        mapping from outcomes to indices. The dictionary should include only the outcomes to keep in the data
+    cue_index: dict or None
+        If None, all cues in the event file are used. Otherwise a dictionary that maps cues to indices should 
+        be given. The dictionary should include only the cues to keep in the data. Default: None
+    outcome_index: dict or None
+        If None, all outcomes in the event file are used. Otherwise a dictionary that maps outcomes to indices should 
+        be given. The dictionary should include only the outcomes to keep in the data. Default: None
     shuffle_epoch: Boolean
         whether to shuffle the data after every epoch
     num_threads: int
@@ -1057,6 +1077,11 @@ def train_NDL(data_train, data_valid, temp_dir, cue_index = None, outcome_index 
         the computation of the activation matrix for these lines. Default: 10000 
     verbose: int (0, 1)
         verbosity mode. 0 = silent, 1 = one line per epoch.
+    temp_dir: str
+        directory where to store temporary files while training NDL. Default: a folder 'TEMP_TRAIN_DIRECTORY' 
+        is created in the current working directory    
+    remove_temp_dir: Boolean
+        whether or not to remove the temporary directory. Default: True
     metrics: list
         for now only ['accuracy', 'precision', 'recall', 'f1score'] is accepted
     metric_average: str
@@ -1263,11 +1288,20 @@ def train_NDL(data_train, data_valid, temp_dir, cue_index = None, outcome_index 
             'val_recall': val_recall_hist,
             'val_f1score': val_f1score_hist
             }
+
+    ### Remove temporary directory if wanted
+    if remove_temp_dir:
+        try:
+            shutil.rmtree(temp_dir)
+        except OSError as e:
+            print("Error: %s : %s" % (temp_dir, e.strerror))
    
     return hist, model
 
-def grid_search_NDL(data_train, data_valid, temp_dir, params, prop_grid, 
-                    tuning_output_file, cue_index = None, outcome_index = None,    
+def grid_search_NDL(data_train, data_valid, params, prop_grid, 
+                    tuning_output_file, cue_index = None, outcome_index = None, 
+                    temp_dir = os.path.join(os.getcwd(), 'TEMP_TRAIN_DIRECTORY'), 
+                    remove_temp_dir = True,   
                     metrics = ['accuracy', 'precision', 'recall', 'f1score'], 
                     metric_average = 'macro', shuffle_epoch = False, 
                     shuffle_grid = True, num_threads = 1, chunksize = 10000, 
@@ -1281,8 +1315,6 @@ def grid_search_NDL(data_train, data_valid, temp_dir, params, prop_grid,
         dataframe or path to the file containing training data
     data_valid: class or dataframe
         dataframe or indexed text file containing validation data
-    temp_dir: str
-        directory where to store temporary files while training NDL
     params: dict of lists
         model parameters:
         'epochs'
@@ -1291,10 +1323,17 @@ def grid_search_NDL(data_train, data_valid, temp_dir, params, prop_grid,
         proportion of the grid combinations to sample 
     tuning_output_file: str
         path of the csv file where the grid search results will be stored
-    cue_index: dict
-        mapping from cues to indices. The dictionary should include only the cues to keep in the data
-    outcome_index: dict
-        mapping from outcomes to indices. The dictionary should include only the outcomes to keep in the data
+    cue_index: dict or None
+        If None, all cues in the event file are used. Otherwise a dictionary that maps cues to indices should 
+        be given. The dictionary should include only the cues to keep in the data. Default: None
+    outcome_index: dict or None
+        If None, all outcomes in the event file are used. Otherwise a dictionary that maps outcomes to indices should 
+        be given. The dictionary should include only the outcomes to keep in the data. Default: None
+    temp_dir: str
+        directory where to store temporary files while training NDL. Default: a folder 'TEMP_TRAIN_DIRECTORY' 
+        is created in the current working directory    
+    remove_temp_dir: Boolean
+        whether or not to remove the temporary directory. Default: True
     metrics: list
         for now only ['accuracy', 'precision', 'recall', 'f1score'] is accepted
     metric_average: str
@@ -1384,13 +1423,14 @@ def grid_search_NDL(data_train, data_valid, temp_dir, params, prop_grid,
             else:
                 hist, model = train_NDL(data_train = data_train, 
                                         data_valid = data_valid,  
-                                        temp_dir = temp_dir,
                                         cue_index = cue_index, 
                                         outcome_index = outcome_index,
                                         shuffle_epoch = shuffle_epoch, 
                                         num_threads = num_threads,
                                         chunksize = chunksize, 
                                         verbose = 0,
+                                        temp_dir = temp_dir,
+                                        remove_temp_dir = False,
                                         metrics = metrics, 
                                         metric_average = metric_average,
                                         params = param_comb)
@@ -1423,6 +1463,247 @@ def grid_search_NDL(data_train, data_valid, temp_dir, params, prop_grid,
                     # Write the row
                     csv_writer.writerow(row_values_j)
                     o.flush()
+
+    ### Remove temporary directory if wanted
+    if remove_temp_dir:
+        try:
+            shutil.rmtree(temp_dir)
+        except OSError as e:
+            print("Error: %s : %s" % (temp_dir, e.strerror))
+
+
+###################################
+# One function to train all models
+###################################
+
+def train(model, data_train, data_valid, cue_index, outcome_index, 
+          params, shuffle_epoch = False, num_threads = 1, 
+          verbose = 0, metrics = ['accuracy', 'precision', 'recall', 'f1score'], 
+          metric_average = 'macro', max_len = 10, use_cuda = False, chunksize = 10000,
+          temp_dir = os.path.join(os.getcwd(), 'TEMP_TRAIN_DIRECTORY'), remove_temp_dir = True):
+
+    """ Train a language learning model
+
+    Parameters
+    ----------
+    model: str
+        name of the model to train. The function currently supports feedforward neural networks (model = 'FNN'),
+        long-short term memory (model = 'LSTM') and naive discriminative learning (model = 'NDL') also commonly known as 
+        Rescorla-Wagner model.
+    data_train: dataframe or class
+        dataframe, path to a '.gz' event file or indexed text file containing training data
+    data_valid: class or dataframe
+        dataframe, path to a '.gz' event file or indexed text file containing validation data  
+    cue_index: dict
+        mapping from cues to indices. The dictionary should include only the cues to keep in the data
+    outcome_index: dict
+        mapping from outcomes to indices. The dictionary should include only the outcomes to keep in the data 
+    params: dict
+        parameter values to be used to train the model  
+    shuffle_epoch: Boolean
+        whether to shuffle the data after every epoch
+    num_threads: int
+        maximum number of processes to use - it should be >= 1. Default: 1
+    verbose: int (0, 1, or 2)
+        verbosity mode. 0 = silent, 1 = progress bar, 2 = one line per epoch.
+    metrics: list
+        for now only ['accuracy', 'precision', 'recall', 'f1score'] is accepted
+    metric_average: str
+        offer almost the same options as the 'average' parameter in sklearn's precision_score, 
+        recall_score and f1_score functions ('binary' not considered), that is: 
+        'micro': calculate metrics globally by counting the total true positives, 
+                 false negatives and false positives
+        'macro': calculate metrics for each label, and find their unweighted mean. 
+                 This does not take label imbalance into account
+        'weighted': calculate metrics for each label, and find their average weighted 
+                    by support (the number of true instances for each label).
+        'samples': calculate metrics for each instance, and find their average (differs 
+                   from accuracy_score only in multilabel classification)
+    max_len: int
+        Can be used only when training LSTM. It allows to consider only 'max_len' first tokens in a sequence. 
+        Default: 10  
+    use_cuda: Boolean
+        Can be used only when training LSTM. It encodes whether to use the cuda optimised LSTM layer for faster 
+        training. Use only if an Nvidia GPU is available with CUDA installed
+    chunksize : int
+        Can be used only when training NDL. It controls the number of lines to use for computing the accuracy in 
+        NDL training. This is done through the computation of the activation matrix for these lines. Default: 10000 
+    temp_dir: str
+        Can be used only when training NDL. It indicates the directory where to store temporary files while training NDL. Default: a folder 'TEMP_TRAIN_DIRECTORY' 
+        is created in the current working directory    
+    remove_temp_dir: Boolean
+        Can be used only when training NDL. It indicates whether or not to remove the temporary directory. Default: True
+
+    Returns
+    -------
+    tuple
+        keras fit history and model objects  
+    """
+
+    ### FNN model
+    if model == 'FNN':
+        hist, model = train_FNN(data_train = data_train, 
+                                data_valid = data_valid, 
+                                cue_index = cue_index, 
+                                outcome_index = outcome_index, 
+                                shuffle_epoch = shuffle_epoch, 
+                                num_threads = num_threads, 
+                                verbose = verbose,
+                                metrics = metrics,
+                                params = params)
+
+    ### LSTM model
+    elif model == 'LSTM':
+        hist, model = train_LSTM(data_train = data_train, 
+                                 data_valid = data_valid, 
+                                 cue_index = cue_index, 
+                                 outcome_index = outcome_index, 
+                                 max_len = max_len,
+                                 shuffle_epoch = shuffle_epoch, 
+                                 use_cuda = use_cuda, 
+                                 num_threads = num_threads, 
+                                 verbose = verbose,
+                                 metrics = metrics,
+                                 params = params)
+
+    ### NDL model
+    elif model == 'NDL':
+        hist, model = train_NDL(data_train = data_train, 
+                                data_valid = data_valid,  
+                                cue_index = cue_index, 
+                                outcome_index = outcome_index,
+                                shuffle_epoch = shuffle_epoch, 
+                                num_threads = num_threads,
+                                chunksize = chunksize, 
+                                verbose = verbose,
+                                temp_dir = temp_dir,
+                                remove_temp_dir = remove_temp_dir,
+                                metrics = ['accuracy', 'precision', 'recall', 'f1score'], # Needs to be corrected later
+                                metric_average = metric_average,
+                                params = params)
+    # Raise an error if a non-supported model is entered 
+    else:
+        raise ValueError(f'The entered model "{model}" is not supported')
+
+  
+    return hist, model
+
+
+def grid_search(model, data_train, data_valid, cue_index, 
+                outcome_index, params, prop_grid, tuning_output_file, 
+                shuffle_epoch = False, shuffle_grid = True, 
+                num_threads = 1, verbose = 1, max_len = 10, use_cuda = False, 
+                chunksize = 10000, temp_dir = os.path.join(os.getcwd(), 'TEMP_TRAIN_DIRECTORY'), 
+                remove_temp_dir = True):
+
+    """ Grid search for the language learning model
+
+    Parameters
+    ----------
+    model: str
+        name of the model to train. The function currently supports feedforward neural networks (model = 'FNN'),
+        long-short term memory (model = 'LSTM') and naive discriminative learning (model = 'NDL') also commonly known as 
+        Rescorla-Wagner model.
+    data_train: dataframe or class
+        dataframe, path to a '.gz' event file or indexed text file containing training data
+    data_valid: class or dataframe
+        dataframe, path to a '.gz' event file or indexed text file containing validation data  
+    cue_index: dict
+        mapping from cues to indices. The dictionary should include only the cues to keep in the data
+    outcome_index: dict
+        mapping from outcomes to indices. The dictionary should include only the outcomes to keep in the data 
+    params: dict
+        parameter values to be used to train the model 
+    prop_grid: float
+        proportion of the grid combinations to sample 
+    tuning_output_file: str
+        path of the csv file where the grid search results will be stored
+    shuffle_epoch: Boolean
+        whether to shuffle the data after every epoch. Default: False
+    shuffle_grid: Boolean
+        whether to shuffle the parameter grid or respect the same order of parameters. Default: True
+        provided in `params'
+    num_threads: int
+        maximum number of processes to use - it should be >= 1. Default: 1
+    verbose: int (0, 1, or 2)
+        verbosity mode. 0 = silent, 1 = progress bar, 2 = one line per epoch.
+    max_len: int
+        Can be used only when training LSTM. It allows to consider only 'max_len' first tokens in a sequence. 
+        Default: 10  
+    use_cuda: Boolean
+        Can be used only when training LSTM. It encodes whether to use the cuda optimised LSTM layer for faster 
+        training. Use only if an Nvidia GPU is available with CUDA installed
+    chunksize : int
+        Can be used only when training NDL. It controls the number of lines to use for computing the accuracy in 
+        NDL training. This is done through the computation of the activation matrix for these lines. Default: 10000 
+    temp_dir: str
+        Can be used only when training NDL. It indicates the directory where to store temporary files while training NDL. Default: a folder 'TEMP_TRAIN_DIRECTORY' 
+        is created in the current working directory    
+    remove_temp_dir: Boolean
+        Can be used only when training NDL. It indicates whether or not to remove the temporary directory. Default: True
+
+    Returns
+    -------
+    None
+        save csv files
+    """
+
+    ### FNN model
+    if model == 'FNN':
+        grid_search_FNN(data_train = data_train, 
+                        data_valid = data_valid, 
+                        cue_index = cue_index, 
+                        outcome_index = outcome_index, 
+                        params = params, 
+                        prop_grid = prop_grid, 
+                        tuning_output_file = tuning_output_file,         
+                        shuffle_epoch = shuffle_epoch, 
+                        shuffle_grid = shuffle_grid, 
+                        num_threads = num_threads, 
+                        verbose = verbose)
+
+    ### LSTM model
+    elif model == 'LSTM':
+        grid_search_LSTM(data_train = data_train, 
+                         data_valid = data_valid, 
+                         cue_index = cue_index, 
+                         outcome_index = outcome_index,
+                         max_len = max_len, 
+                         params = params, 
+                         prop_grid = prop_grid, 
+                         tuning_output_file = tuning_output_file,         
+                         shuffle_epoch = shuffle_epoch, 
+                         shuffle_grid = shuffle_grid, 
+                         use_cuda = use_cuda, 
+                         num_threads = num_threads, 
+                         verbose = verbose)
+ 
+    ### NDL model
+    elif model == 'NDL':
+        grid_search_NDL(data_train = data_train, 
+                        data_valid = data_valid,
+                        params = params, 
+                        prop_grid = prop_grid, 
+                        tuning_output_file = tuning_output_file,          
+                        cue_index = cue_index, 
+                        outcome_index = outcome_index, 
+                        temp_dir = temp_dir,
+                        remove_temp_dir = remove_temp_dir,
+                        metrics = ['accuracy', 'precision', 'recall', 'f1score'], # Needs to be corrected later
+                        metric_average = metric_average,
+                        shuffle_epoch = shuffle_epoch, 
+                        shuffle_grid = shuffle_grid, 
+                        num_threads = num_threads,
+                        chunksize = chunksize, 
+                        verbose = verbose)
+
+    # Raise an error if a non-supported model is entered 
+    else:
+        raise ValueError(f'The entered model "{model}" is not supported')
+
+  
+    return hist, model
+    
 
 ##################################
 # Saving and loading model objects
