@@ -37,6 +37,40 @@ from deep_text_modelling.preprocessing import df_to_gz, IndexedFile
 # Tokenisation
 ###############
 
+def seq_to_integers_1darray(seq, index_system, N_tokens, max_len = None):
+
+    """Convert a text sequence to a 1d array of integers (used for training with embedding)
+
+    Parameters
+    ----------
+    seq: str
+        string to convert
+    index_system: dict
+        index system giving the mapping from tokens to indices
+    N_tokens: int
+        number of allowed tokens (cues or outcomes). This determines the length of the one-hot array
+    max_len: int
+        Consider only 'max_len' first tokens to in a sequence
+
+    Returns
+    -------
+    numpy array
+        unidimensional array with words replaced by their indices in the input index system
+    """
+
+    # List of words in the sentence 
+    targets = seq.split('_')
+    #target_indices = [[index_system[w] for w in targets if w in index_system]]
+
+    if max_len: # pad sequences if max_len is given
+        target_indices = [[index_system[w] for w in targets if w in index_system]]
+        # pad the list of indices
+        target_indices = pad_sequences(target_indices, maxlen = max_len, padding = 'post', truncating= 'post')[0]
+    else:
+        target_indices = np.array([index_system[w] for w in targets if w in index_system])
+
+    return target_indices
+    
 def seq_to_onehot_1darray(seq, index_system, N_tokens, max_len = None):
 
     """Convert a text sequence to a one-hot 1d array (used by FNN)
