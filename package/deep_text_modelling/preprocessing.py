@@ -608,3 +608,33 @@ def create_epochs_textfile(infile_path, outfile_path, epoch, shuffle_epoch = Fal
                 lines_epoch = [lines[0]] + (lines[1:] * epoch) # lines[0] is the heading          
             fw.writelines(lines_epoch)
 
+#############
+# Embeddings
+#############
+
+def extract_embedding_dim(embedding_input):
+
+    """ Extract the dimension of the embedding vectors from and embedding file or numpy matrix
+
+    Parameters
+    ----------
+    embedding_input: str or numpy array
+        numpy matrix or txt file that contains the embedding vectors
+    """
+
+    ### Extract embedding dimension
+    if isinstance(embedding_input, np.ndarray):
+        embedding_dim = np.size(embedding_input, 1)
+    elif isinstance(embedding_input, str): # if pre-trained embedding provided
+        with open(embedding_input) as f:
+            for ii, line in enumerate(f):
+                if ii == 0: # skip the first line just in case the file has a heading
+                    continue
+                if ii == 1: 
+                    word, coefs = line.split(maxsplit=1)
+                    coefs = np.fromstring(coefs, 'f', sep=' ')
+                    embedding_dim = coefs.size
+                else:
+                    break
+
+    return embedding_dim
