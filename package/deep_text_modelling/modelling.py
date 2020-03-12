@@ -396,13 +396,22 @@ def train_FNN(data_train, data_valid, cue_index, outcome_index,
                   optimizer = params['optimizer'](lr = params['lr']),
                   metrics = metrics)
     
-    # Fit the model 
-    out = model.fit_generator(generator = train_gen,
-                              validation_data = valid_gen,
-                              epochs = params['epochs'],
-                              use_multiprocessing = True,
-                              verbose = verbose,
-                              workers = num_threads-1)
+    # Fit the model
+    # No parallel processing if the inputs are text files (still need to be sorted out)
+    if isinstance(data_train, pd.DataFrame) and isinstance(data_valid, pd.DataFrame): 
+        out = model.fit_generator(generator = train_gen,
+                                validation_data = valid_gen,
+                                epochs = params['epochs'],
+                                use_multiprocessing = True,
+                                verbose = verbose,
+                                workers = num_threads-1)
+    else:
+        out = model.fit_generator(generator = train_gen,
+                                validation_data = valid_gen,
+                                epochs = params['epochs'],
+                                use_multiprocessing = False,
+                                verbose = verbose,
+                                workers = 0)
     hist = out.history
     
     return hist, model
@@ -845,14 +854,22 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
 
     
     # Fit the model 
-    out = model.fit_generator(generator = train_gen,
-                              validation_data = valid_gen,
-                              epochs = params['epochs'],
-                              use_multiprocessing = True,
-                              verbose = verbose,
-                              workers = num_threads-1)
-
-    hist = out.history    
+    # No parallel processing if the inputs are text files (still need to be sorted out)
+    if isinstance(data_train, pd.DataFrame) and isinstance(data_valid, pd.DataFrame):
+        out = model.fit_generator(generator = train_gen,
+                                  validation_data = valid_gen,
+                                  epochs = params['epochs'],
+                                  use_multiprocessing = True,
+                                  verbose = verbose,
+                                  workers = num_threads-1)
+    else:
+        out = model.fit_generator(generator = train_gen,
+                                  validation_data = valid_gen,
+                                  epochs = params['epochs'],
+                                  use_multiprocessing = False,
+                                  verbose = verbose,
+                                  workers = 0)
+    hist = out.history  
 
     return hist, model
  
