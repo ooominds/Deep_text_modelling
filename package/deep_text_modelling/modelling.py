@@ -838,6 +838,7 @@ class generator_df_LSTM(keras.utils.Sequence):
         return X, Y
 
 def train_LSTM(data_train, data_valid, cue_index, outcome_index, max_len, 
+               embedding_input = None, embedding_dim = 50,
                shuffle_epoch = False, use_cuda = False, 
                num_threads = 1, verbose = 0,
                metrics = ['accuracy', 'precision', 'recall', 'f1score'],
@@ -864,6 +865,14 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
         mapping from outcomes to indices. The dictionary should include only the outcomes to keep in the data
     max_len: int
         Consider only 'max_len' first tokens in a sequence  
+    embedding_input: str, numpy matrix or None
+        three possible choices: (1) if embedding_input = 'learn', learn embedding vectors from scratch while 
+        training the model. An embedding layer will be added to the network; (2) if embedding_input = 'path', 
+        extract embedding vectors from an embedding text file given in 'path' (it is imporant that it is a 
+        text file); (3) Use the already prepared embedding matrix for training. You can use 
+        prepare_embedding_matrix() from the preprocessing module. Default: None
+    embedding_dim: int or None
+        Default: 50
     shuffle_epoch: Boolean
         whether to shuffle the data after every epoch
     use_cuda: Boolean
@@ -926,26 +935,25 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
         elif m == 'f1score':
             metrics[i] = f1score
 
-    ### Initiate the generators for the train, valid and test data
-    train_gen = generator_train(data = data_train, 
-                                batch_size = params['batch_size'],
-                                num_cues = num_cues,
-                                num_outcomes = num_outcomes,
-                                cue_index = cue_index,
-                                outcome_index = outcome_index,
-                                max_len = max_len,
-                                shuffle_epoch = shuffle_epoch)
-    valid_gen = generator_valid(data = data_valid, 
-                                batch_size = params['batch_size'],
-                                num_cues = num_cues,
-                                num_outcomes = num_outcomes,
-                                cue_index = cue_index,
-                                outcome_index = outcome_index,
-                                max_len = max_len,
-                                shuffle_epoch = shuffle_epoch)
-
+    
     ### Initialise the model
     model = Sequential()  
+
+    ### Add embedding layer if requested + decide vector encoding type
+    if not embedding_input:
+        vector_encoding_0 = 'onehot'
+    else:
+        vector_encoding_0 = 'embedding'
+        if embedding_input == 'learn':
+            model.add(Embedding(num_cues+1, embedding_dim, input_length = max_len))
+        elif isinstance(embedding_input, str) and not embedding_input == 'learn': # if pre-trained embedding provided
+            embedding_dim = extract_embedding_dim(embedding_input) # Extract embedding dimension
+            embedding_mat = prepare_embedding_matrix(embedding_input, cue_index)
+            model.add(Embedding(num_cues+1, embedding_dim, input_length=max_len, weights=[embedding_mat], trainable=False)) 
+        elif isinstance(embedding_input, np.ndarray):
+            embedding_dim = extract_embedding_dim(embedding_input) # Extract embedding dimension
+            model.add(Embedding(num_cues+1, embedding_dim, input_length=max_len, weights=[embedding_input], trainable=False))
+        #model.add(Flatten())
 
     # LSTM layer 
     if use_cuda == False:
@@ -965,7 +973,26 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
                   optimizer = params['optimizer'](lr = params['lr']),
                   metrics = metrics)
 
-    
+    ### Initiate the generators for the train, valid and test data
+    train_gen = generator_train(data = data_train, 
+                                batch_size = params['batch_size'],
+                                num_cues = num_cues,
+                                num_outcomes = num_outcomes,
+                                cue_index = cue_index,
+                                outcome_index = outcome_index,
+                                max_len = max_len,
+                                vector_encoding = vector_encoding_0,
+                                shuffle_epoch = shuffle_epoch)
+    valid_gen = generator_valid(data = data_valid, 
+                                batch_size = params['batch_size'],
+                                num_cues = num_cues,
+                                num_outcomes = num_outcomes,
+                                cue_index = cue_index,
+                                outcome_index = outcome_index,
+                                max_len = max_len,
+                                vector_encoding = vector_encoding_0,
+                                shuffle_epoch = shuffle_epoch)
+
     # Fit the model 
     # No parallel processing if the inputs are text files (still need to be sorted out)
     if isinstance(data_train, pd.DataFrame) and isinstance(data_valid, pd.DataFrame):
@@ -982,7 +1009,7 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
                                   use_multiprocessing = False,
                                   verbose = verbose,
                                   workers = 0)
-    hist = out.history  
+    hist = out.history    
 
     return hist, model
  
