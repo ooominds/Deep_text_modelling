@@ -638,3 +638,44 @@ def extract_embedding_dim(embedding_input):
                     break
 
     return embedding_dim
+
+def prepare_embedding_matrix(embedding_input, cue_index):
+
+    """ Prepare the embedding matrix to use with Keras from a text file or from available gensim embeddings
+
+    Parameters
+    ----------
+    embedding_input: str
+        for now only accepts path to a txt file that contains the embedding vectors
+    cue_index: dict
+        mapping from cues to indices. The dictionary should include only the cues to be used for modelling
+    """
+
+    # Number of words in the index system
+    N_cues = len(cue_index)
+
+    # Extract dimension of the embedding vectors
+    embedding_dim = extract_embedding_dim(embedding_input = embedding_input)
+
+    # Create the embedding index system, that is, a dictionary that maps words to their embedding vectors.
+    # Restrict to words that exist in the index system 
+    embeddings_index = {}
+    with open(embedding_input) as f:
+        for line in f:
+            word, coefs = line.split(maxsplit=1)
+            if word in cue_index and len(embeddings_index) < N_cues:
+                coefs = np.fromstring(coefs, 'f', sep=' ')
+                embeddings_index[word] = coefs
+            elif word not in cue_index and len(embeddings_index) < N_cues:
+                continue
+            else:
+                break
+            
+    # Preparing the word embedding matrix for training
+    embedding_mat = np.zeros((N_cues+1, embedding_dim)) #] vectors for Words that do not appear in the embedding file will be set to 0
+    for word, i in cue_index.items():
+        embedding_vec = embeddings_index.get(word)
+        if embedding_vec is not None:
+            embedding_mat[i-1] = embedding_vec
+
+    return embedding_mat
