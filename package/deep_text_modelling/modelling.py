@@ -70,7 +70,7 @@ def seq_to_integers_1darray(seq, index_system, N_tokens, max_len = None):
         target_indices = np.array([index_system[w] for w in targets if w in index_system])
 
     return target_indices
-    
+
 def seq_to_onehot_1darray(seq, index_system, N_tokens, max_len = None):
 
     """Convert a text sequence to a one-hot 1d array (used by FNN)
@@ -171,6 +171,10 @@ class generator_textfile_FNN(keras.utils.Sequence):
         mapping from cues to indices
     outcome_index: dict
         mapping from outcomes to indices
+    max_len: int
+        Consider only 'max_len' first tokens in a sequence
+    vector_encoding: str
+        Whether to use one-hot encoding (='onehot') or embedding (='embedding'). Default: 'onehot'
     shuffle_epoch: Boolean
         whether to shuffle the data after every epoch
 
@@ -181,7 +185,8 @@ class generator_textfile_FNN(keras.utils.Sequence):
     """
 
     def __init__(self, data, batch_size, num_cues, num_outcomes, 
-                 cue_index, outcome_index, shuffle_epoch = False):
+                 cue_index, outcome_index, max_len, 
+                 vector_encoding = 'onehot', shuffle_epoch = False):
         'Initialization'
         self.data =  data
         self.batch_size = batch_size    
@@ -189,6 +194,8 @@ class generator_textfile_FNN(keras.utils.Sequence):
         self.num_outcomes = num_outcomes
         self.cue_index = cue_index
         self.outcome_index = outcome_index
+        self.max_len = max_len
+        self.vector_encoding = vector_encoding
         self.shuffle_epoch = shuffle_epoch
         self.on_epoch_end()
 
@@ -198,7 +205,7 @@ class generator_textfile_FNN(keras.utils.Sequence):
 
     def __getitem__(self, index):
         'Generate one batch of data'
-        # Generate indexes of the batch
+        # Generate indices of the batch
         indexes_batch = self.indexes[index*self.batch_size:(index+1)*self.batch_size]
         # Generate data
         X, Y = self.__data_generation(indexes_batch)
@@ -212,12 +219,18 @@ class generator_textfile_FNN(keras.utils.Sequence):
 
     def __data_generation(self, indexes_batch):
         'Generates data containing batch_size samples'
+
+        if self.vector_encoding == 'onehot': # One-hot encoding
+            seq_to_vec = seq_to_onehot_1darray
+        else: # Embedding
+            seq_to_vec = seq_to_integers_1darray
+
         X_arrays = []
         Y_arrays = []
         for raw_event in self.data[indexes_batch]:
             # extract the cues and outcomes sequences
             cue_seq, outcome_seq = raw_event.strip().split('\t')
-            cues_onehot = seq_to_onehot_1darray(cue_seq, self.cue_index, self.num_cues)
+            cues_onehot = seq_to_vec(cue_seq, self.cue_index, self.num_cues)
             outcomes_onehot = seq_to_onehot_1darray(outcome_seq, self.outcome_index, self.num_outcomes)
             X_arrays.append(cues_onehot)
             Y_arrays.append(outcomes_onehot)
@@ -246,8 +259,12 @@ class generator_df_FNN(keras.utils.Sequence):
         mapping from cues to indices
     outcome_index: dict
         mapping from outcomes to indices
+    max_len: int
+        Consider only 'max_len' first tokens in a sequence
+    vector_encoding: str
+        Whether to use one-hot encoding (='onehot') or embedding (='embedding'). Default: 'onehot'
     shuffle_epoch: Boolean
-        whether to shuffle the data after every epoch
+        whether to shuffle the data after every epoch. Default: False
 
     Returns
     -------
@@ -256,7 +273,8 @@ class generator_df_FNN(keras.utils.Sequence):
     """
 
     def __init__(self, data, batch_size, num_cues, num_outcomes, 
-                 cue_index, outcome_index, shuffle_epoch = False):
+                 cue_index, outcome_index, max_len, 
+                 vector_encoding = 'onehot', shuffle_epoch = False):
         'Initialization'
         self.data =  data
         self.batch_size = batch_size    
@@ -264,16 +282,18 @@ class generator_df_FNN(keras.utils.Sequence):
         self.num_outcomes = num_outcomes
         self.cue_index = cue_index
         self.outcome_index = outcome_index
+        self.max_len = max_len
+        self.vector_encoding = vector_encoding
         self.shuffle_epoch = shuffle_epoch
         self.on_epoch_end()
-
+        
     def __len__(self):
         'Denotes the number of batches per epoch'
         return int(np.floor(len(self.data) / self.batch_size))
 
     def __getitem__(self, index):
         'Generate one batch of data'
-        # Generate indexes of the batch
+        # Generate indices of the batch
         indexes_batch = self.indexes[index*self.batch_size:(index+1)*self.batch_size]
         # Generate data
         X, Y = self.__data_generation(indexes_batch)
@@ -287,10 +307,13 @@ class generator_df_FNN(keras.utils.Sequence):
 
     def __data_generation(self, indexes_batch):
         'Generates data containing batch_size samples' 
-        X_arrays = [seq_to_onehot_1darray(cue_seq, self.cue_index, self.num_cues) for cue_seq in self.data.loc[self.data.index[indexes_batch], 'cues']]
-        X =  np.stack(X_arrays, axis=0)
-
+        if self.vector_encoding == 'onehot': # One-hot encoding
+            seq_to_vec = seq_to_onehot_1darray
+        else: # Embedding
+            seq_to_vec = seq_to_integers_1darray
+        X_arrays = [seq_to_vec(cue_seq, self.cue_index, self.num_cues, self.max_len) for cue_seq in self.data.loc[self.data.index[indexes_batch], 'cues']]
         Y_arrays = [seq_to_onehot_1darray(outcome_seq, self.outcome_index, self.num_outcomes) for outcome_seq in self.data.loc[self.data.index[indexes_batch], 'outcomes']]
+        X =  np.stack(X_arrays, axis=0)
         Y =  np.stack(Y_arrays, axis=0)
 
         # Generate data
