@@ -691,6 +691,8 @@ class generator_textfile_LSTM(keras.utils.Sequence):
         mapping from outcomes to indices
     max_len: int
         Consider only 'max_len' first tokens in a sequence
+    vector_encoding: str
+        Whether to use one-hot encoding (='onehot') or embedding (='embedding'). Default: 'onehot'
     shuffle_epoch: Boolean
         whether to shuffle the data after every epoch
 
@@ -701,7 +703,8 @@ class generator_textfile_LSTM(keras.utils.Sequence):
     """
 
     def __init__(self, data, batch_size, num_cues, num_outcomes, 
-                 cue_index, outcome_index, max_len, shuffle_epoch = False):
+                 cue_index, outcome_index, max_len, 
+                 vector_encoding = 'onehot', shuffle_epoch = False):
         'Initialization'
         self.data =  data
         self.batch_size = batch_size    
@@ -710,6 +713,7 @@ class generator_textfile_LSTM(keras.utils.Sequence):
         self.cue_index = cue_index
         self.outcome_index = outcome_index
         self.max_len = max_len
+        self.vector_encoding = vector_encoding
         self.shuffle_epoch = shuffle_epoch
         self.on_epoch_end()
 
@@ -719,7 +723,7 @@ class generator_textfile_LSTM(keras.utils.Sequence):
 
     def __getitem__(self, index):
         'Generate one batch of data'
-        # Generate indexes of the batch
+        # Generate indices of the batch
         indexes_batch = self.indexes[index*self.batch_size:(index+1)*self.batch_size]
         # Generate data
         X, Y = self.__data_generation(indexes_batch)
@@ -733,12 +737,18 @@ class generator_textfile_LSTM(keras.utils.Sequence):
 
     def __data_generation(self, indexes_batch):
         'Generates data containing batch_size samples'
+
+        if self.vector_encoding == 'onehot': # One-hot encoding
+            seq_to_vec = seq_to_onehot_2darray
+        else: # Embedding
+            seq_to_vec = seq_to_integers_1darray
+
         X_arrays = []
         Y_arrays = []
         for raw_event in self.data[indexes_batch]:
             # extract the cues and outcomes sequences
             cue_seq, outcome_seq = raw_event.strip().split('\t')
-            cues_onehot = seq_to_onehot_2darray(cue_seq, self.cue_index, self.num_cues, self.max_len)
+            cues_onehot = seq_to_vec(cue_seq, self.cue_index, self.num_cues, self.max_len)
             outcomes_onehot = seq_to_onehot_1darray(outcome_seq, self.outcome_index, self.num_outcomes)
             X_arrays.append(cues_onehot)
             Y_arrays.append(outcomes_onehot)
@@ -769,6 +779,8 @@ class generator_df_LSTM(keras.utils.Sequence):
         mapping from outcomes to indices
     max_len: int
         Consider only 'max_len' first tokens in a sequence
+    vector_encoding: str
+        Whether to use one-hot encoding (='onehot') or embedding (='embedding'). Default: 'onehot'
     shuffle_epoch: Boolean
         whether to shuffle the data after every epoch
 
@@ -779,7 +791,8 @@ class generator_df_LSTM(keras.utils.Sequence):
     """
 
     def __init__(self, data, batch_size, num_cues, num_outcomes, 
-                 cue_index, outcome_index, max_len, shuffle_epoch = False):
+                 cue_index, outcome_index, max_len, 
+                 vector_encoding = 'onehot', shuffle_epoch = False):
         'Initialization'
         self.data =  data
         self.batch_size = batch_size    
@@ -788,6 +801,7 @@ class generator_df_LSTM(keras.utils.Sequence):
         self.cue_index = cue_index
         self.outcome_index = outcome_index
         self.max_len = max_len
+        self.vector_encoding = vector_encoding
         self.shuffle_epoch = shuffle_epoch
         self.on_epoch_end()
 
@@ -797,7 +811,7 @@ class generator_df_LSTM(keras.utils.Sequence):
 
     def __getitem__(self, index):
         'Generate one batch of data'
-        # Generate indexes of the batch
+        # Generate indices of the batch
         indexes_batch = self.indexes[index*self.batch_size:(index+1)*self.batch_size]
         # Generate data
         X, Y = self.__data_generation(indexes_batch)
@@ -810,13 +824,15 @@ class generator_df_LSTM(keras.utils.Sequence):
             np.random.shuffle(self.indexes)
 
     def __data_generation(self, indexes_batch):
-
         'Generates data containing batch_size samples' # X : (batch_size, *dim, n_channels)
-        X_arrays = [seq_to_onehot_2darray(cue_seq, self.cue_index, self.num_cues, self.max_len) for cue_seq in self.data.loc[self.data.index[indexes_batch], 'cues']]
-        X =  np.stack(X_arrays, axis=0)
-
+        if self.vector_encoding == 'onehot': # One-hot encoding
+            seq_to_vec = seq_to_onehot_2darray
+        else: # Embedding
+            seq_to_vec = seq_to_integers_1darray
+        X_arrays = [seq_to_vec(cue_seq, self.cue_index, self.num_cues, self.max_len) for cue_seq in self.data.loc[self.data.index[indexes_batch], 'cues']]
         Y_arrays = [seq_to_onehot_1darray(outcome_seq, self.outcome_index, self.num_outcomes) for outcome_seq in self.data.loc[self.data.index[indexes_batch], 'outcomes']]
         Y =  np.stack(Y_arrays, axis=0)
+        X =  np.stack(X_arrays, axis=0)
 
         # Generate data
         return X, Y
