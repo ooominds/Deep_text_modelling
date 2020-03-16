@@ -12,6 +12,7 @@ import os
 import time
 import h5py
 import shutil
+import ntpath
 
 import keras
 from keras.models import Sequential, load_model
