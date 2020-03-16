@@ -549,18 +549,38 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
         mapping from cues to indices. The dictionary should include only the cues to keep in the data
     outcome_index: dict
         mapping from outcomes to indices. The dictionary should include only the outcomes to keep in the data
-    params: dict of lists
+    params: dict
         model parameters:
-        'epochs'
-        'batch_size'
-        'hidden_layers'
-        'hidden_neuron'
-        'lr'
-        'dropout'
-        'optimizer'
-        'losses'
-        'activation'
-        'last_activation'
+        'max_len': int
+            Consider only 'max_len' first tokens in a cue sequence. Default: 10   
+        'embedding_input': str, numpy matrix or None
+            There are 3 possible choices: (1) if embedding_input = 'learn', learn embedding vectors from scratch while 
+            training the model. An embedding layer will be added to the network; (2) if embedding_input = 'path', 
+            extract embedding vectors from an embedding text file given in 'path' (it is imporant that it is a 
+            text file); (3) Use the already prepared embedding matrix for training. You can use 
+            prepare_embedding_matrix() from the preprocessing module. Default: None
+        'embedding_dim': int or None
+            Length of the cue embedding vectors. Default: 50
+        'epochs': int
+            Number of passes through the entire training dataset that has to be completed. Default: 1
+        'batch_size': int
+            Number of training examples to use for each update
+        'hidden_layers': int
+            Number of hidden layers
+        'hidden_neuron': int
+            Number of neurons in the LSTM layer
+        'lr': float
+            Learning rate
+        'dropout': float
+            Dropout in the LSTM layer
+        'optimizer': class
+            Keras optimizer function
+        'losses': func
+            Keras loss function
+        'activation': func
+            Keras activation in each layer
+        'last_activation': str
+            Keras activation in the output layer
     prop_grid: float
         proportion of the grid combinations to sample 
     tuning_output_file: str
@@ -593,9 +613,37 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
         (not isinstance(data_train, str))):
         raise ValueError("data_valid should be either a path to an event file, a dataframe or an indexed text file")
 
+    # Extract the dimensions of the pretrained embeddings
+    pretrain_embed_dim = {}
+    embed_inputs = params['embedding_input']
+    for i, e in enumerate(embed_inputs):
+        if embed_inputs[i] and embed_inputs[i] != 'learn':
+            pretrain_embed_dim.update({embed_inputs[i]:extract_embedding_dim(embed_inputs[i])})
+
     # Create a list of dictionaries giving all possible parameter combinations
     keys, values = zip(*params.items())
     grid_full = [dict(zip(keys, v)) for v in itertools.product(*values)]
+
+    # Remove impossible combinations
+    ind_to_remove = []
+    for i,d in enumerate(grid_full):
+        # In the case of no hidden layer, no need to set the 'activation' parameter - only 'last_activation' is used
+        if grid_full[i]['hidden_layers'] == 0:
+            grid_full[i]['activation'] = None
+        # In the case of hot encoding or pretrained embedding, no need to set embedding_dim, otherwise,
+        # it is essential to set embedding_dim, so remove all cases where embedding_dim is not given with
+        # embeddings to be learned from scratch
+        if not grid_full[i]['embedding_input']:
+            grid_full[i]['embedding_dim'] = None
+        elif grid_full[i]['embedding_input'] == 'learn' and not grid_full[i]['embedding_dim']:
+            ind_to_remove.append(i) 
+        elif grid_full[i]['embedding_input'] and grid_full[i]['embedding_input'] != 'learn':
+            grid_full[i]['embedding_dim'] = pretrain_embed_dim[grid_full[i]['embedding_input']]
+    # First remove the combinations 'embedding_input = 'learn', embedding_dim = None' 
+    for ii in sorted(ind_to_remove, reverse = True):
+        del grid_full[ii]
+    # Second remove the duplicated combinations 'embedding_input != 'learn', embedding_dim = None' 
+    grid_full = [dict(t) for t in {tuple(d.items()) for d in grid_full}]    
     
     # shuffle the list of params
     if shuffle_grid:
@@ -628,7 +676,7 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
             row_values = list(param_comb.values())
 
             # Check if the current parameter combination has already been processed in the grid search
-            if param_comb in param_comb_sofar:
+            if row_values in param_comb_sofar:
                 if verbose == 1:
                     print(f'This parameter combination was skipped because it was already processed: {param_comb}\n')
 
@@ -644,10 +692,19 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
                                         metrics = ['accuracy', 'precision', 'recall', 'f1score'],
                                         params = param_comb)
 
-                # Get index of epochs in the 'param_comb' dictionary
+                # Get index of epochs and extract embedding name from the 'param_comb' dictionary
                 for ind, (k, v) in enumerate(param_comb.items()):
                     if k == 'epochs':
                         i_epochs = ind
+                    elif (k == 'embedding_input') and isinstance(v, str) and (v != 'learn'):
+                        # Extract the name of embedding fron the path
+                        row_values[ind] = ntpath.basename(v)[:-4]
+                    elif (k == 'embedding_input') and not v:
+                        row_values[ind] = 'one_hot' 
+                    elif (k == 'embedding_dim') and not v:
+                        row_values[ind] = 0 
+                    elif (k == 'activation') and not v:
+                        row_values[ind] = 'none' 
 
                 ### Export the results to a csv file
                 for j in range(param_comb['epochs']):
@@ -664,13 +721,13 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
                     # Add the performance scores
                     # training
                     loss_j = hist['loss'][j]
-                    acc_j = hist['acc'][j]
+                    acc_j = hist['accuracy'][j]
                     precision_j = hist['precision'][j]
                     recall_j = hist['recall'][j]            
                     f1score_j = hist['f1score'][j]
                     # validation
                     val_loss_j = hist['val_loss'][j]
-                    val_acc_j = hist['val_acc'][j]
+                    val_acc_j = hist['val_accuracy'][j]
                     val_precision_j = hist['val_precision'][j]
                     val_recall_j = hist['val_recall'][j]            
                     val_f1score_j = hist['val_f1score'][j]
@@ -1040,7 +1097,7 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index,
 
     return hist, model
  
-def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
+def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index,
                      params, prop_grid, tuning_output_file, shuffle_epoch = False, 
                      shuffle_grid = True, num_threads = 1, verbose = 1):
 
@@ -1056,18 +1113,34 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
         mapping from cues to indices. The dictionary should include only the cues to keep in the data
     outcome_index: dict
         mapping from outcomes to indices. The dictionary should include only the outcomes to keep in the data
-    max_len: int
-        Consider only 'max_len' first tokens in a sequence 
     params: dict
         model parameters:
-        'epochs'
-        'batch_size'
-        'hidden_neuron'
-        'lr'
-        'dropout'
-        'optimizer'
-        'losses'
-        'last_activation'
+        'max_len': int
+            Consider only 'max_len' first tokens in a cue sequence. Default: 10 
+        'embedding_input': str, numpy matrix or None
+            There are 3 possible choices: (1) if embedding_input = 'learn', learn embedding vectors from scratch while 
+            training the model. An embedding layer will be added to the network; (2) if embedding_input = 'path', 
+            extract embedding vectors from an embedding text file given in 'path' (it is imporant that it is a 
+            text file); (3) Use the already prepared embedding matrix for training. You can use 
+            prepare_embedding_matrix() from the preprocessing module. Default: None
+        'embedding_dim': int or None
+            Length of the cue embedding vectors. Default: 50
+        'epochs': int
+            Number of passes through the entire training dataset that has to be completed. Default: 1
+        'batch_size': int
+            Number of training examples to use for each update
+        'hidden_neuron': int
+            Number of neurons in the LSTM layer
+        'lr': float
+            Learning rate
+        'dropout': float
+            Dropout in the LSTM layer
+        'optimizer': class
+            Keras optimizer function
+        'losses': func
+            Keras loss function
+        'last_activation': str
+            Keras activation in the output layer
     prop_grid: float
         proportion of the grid combinations to sample 
     tuning_output_file: str
@@ -1100,10 +1173,35 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
         (not isinstance(data_train, str))):
         raise ValueError("data_valid should be either a path to an event file, a dataframe or an indexed text file")
 
+    # Extract the dimensions of the pretrained embeddings
+    pretrain_embed_dim = {}
+    embed_inputs = params['embedding_input']
+    for i, e in enumerate(embed_inputs):
+        if embed_inputs[i] and embed_inputs[i] != 'learn':
+            pretrain_embed_dim.update({embed_inputs[i]:extract_embedding_dim(embed_inputs[i])})
+
     ### Create a list of dictionaries giving all possible parameter combinations
     keys, values = zip(*params.items())
     grid_full = [dict(zip(keys, v)) for v in itertools.product(*values)]
-    
+
+    # Remove impossible combinations
+    ind_to_remove = []
+    for i,d in enumerate(grid_full):
+        # In the case of hot encoding or pretrained embedding, no need to set embedding_dim, otherwise,
+        # it is essential to set embedding_dim, so remove all cases where embedding_dim is not given with
+        # embeddings to be learned from scratch
+        if not grid_full[i]['embedding_input']:
+            grid_full[i]['embedding_dim'] = None
+        elif grid_full[i]['embedding_input'] == 'learn' and not grid_full[i]['embedding_dim']:
+            ind_to_remove.append(i) 
+        elif grid_full[i]['embedding_input'] and grid_full[i]['embedding_input'] != 'learn':
+            grid_full[i]['embedding_dim'] = pretrain_embed_dim[grid_full[i]['embedding_input']]
+    # First remove the combinations 'embedding_input = 'learn', embedding_dim = None' 
+    for ii in sorted(ind_to_remove, reverse = True):
+        del grid_full[ii]
+    # Second remove the duplicated combinations 'embedding_input != 'learn', embedding_dim = None' 
+    grid_full = [dict(t) for t in {tuple(d.items()) for d in grid_full}]    
+
     # shuffle the list of params
     if shuffle_grid:
         random.shuffle(grid_full)
@@ -1133,11 +1231,18 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
             # this will contain the values that will be recorded in each row. 
             # We start by copying the parameter values
             row_values = list(param_comb.values())
-
-            # Get index of epochs in the 'param_comb' dictionary
+                
+            # Get index of epochs and extract embedding name from the 'param_comb' dictionary
             for ind, (k, v) in enumerate(param_comb.items()):
                 if k == 'epochs':
                     i_epochs = ind
+                elif (k == 'embedding_input') and isinstance(v, str) and (v != 'learn'):
+                    # Extract the name of embedding fron the path
+                    row_values[ind] = ntpath.basename(v)[:-4]
+                elif (k == 'embedding_input') and not v:
+                    row_values[ind] = 'one_hot' 
+                elif (k == 'embedding_dim') and not v:
+                    row_values[ind] = 0 
 
             # Check if the current parameter combination has already been processed in the grid search
             if row_values in param_comb_sofar:
@@ -1150,12 +1255,25 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
                                          data_valid = data_valid, 
                                          cue_index = cue_index, 
                                          outcome_index = outcome_index, 
-                                         max_len = max_len,
-                                         shuffle_epoch = shuffle_epoch,
+                                         shuffle_epoch = shuffle_epoch,  
                                          num_threads = num_threads, 
                                          verbose = 0,
                                          metrics = ['accuracy', 'precision', 'recall', 'f1score'],
                                          params = param_comb)
+
+                # Get index of epochs and extract embedding name from the 'param_comb' dictionary
+                for ind, (k, v) in enumerate(param_comb.items()):
+                    if k == 'epochs':
+                        i_epochs = ind
+                    elif (k == 'embedding_input') and isinstance(v, str) and (v != 'learn'):
+                        # Extract the name of embedding fron the path
+                        row_values[ind] = ntpath.basename(v)[:-4]
+                    elif (k == 'embedding_input') and not v:
+                        row_values[ind] = 'one_hot' 
+                    elif (k == 'embedding_dim') and not v:
+                        row_values[ind] = 0 
+                    elif (k == 'activation') and not v:
+                        row_values[ind] = 'none' 
 
                 ### Export the results to a csv file
                 for j in range(param_comb['epochs']):
@@ -1172,13 +1290,13 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
                     # Add the performance scores
                     # training
                     loss_j = hist['loss'][j]
-                    acc_j = hist['acc'][j]
+                    acc_j = hist['accuracy'][j]
                     precision_j = hist['precision'][j]
                     recall_j = hist['recall'][j]            
                     f1score_j = hist['f1score'][j]
                     # validation
                     val_loss_j = hist['val_loss'][j]
-                    val_acc_j = hist['val_acc'][j]
+                    val_acc_j = hist['val_accuracy'][j]
                     val_precision_j = hist['val_precision'][j]
                     val_recall_j = hist['val_recall'][j]            
                     val_f1score_j = hist['val_f1score'][j]
