@@ -320,11 +320,13 @@ class generator_df_FNN(keras.utils.Sequence):
         # Generate data
         return X, Y
 
-def train_FNN(data_train, data_valid, cue_index, outcome_index, max_len, 
-              embedding_input = None, embedding_dim = 50,
+def train_FNN(data_train, data_valid, cue_index, outcome_index, 
               shuffle_epoch = False, num_threads = 1, verbose = 0,
               metrics = ['accuracy', 'precision', 'recall', 'f1score'],
-              params = {'epochs': 1, # number of iterations on the full set 
+              params = {'max_len': 10,
+                        'embedding_input': None,
+                        'embedding_dim': None,
+                        'epochs': 1, # number of iterations on the full set 
                         'batch_size': 128, 
                         'hidden_layers': 0, # number of hidden layers 
                         'hidden_neuron':64, # number of neurons in the input layer 
@@ -347,16 +349,6 @@ def train_FNN(data_train, data_valid, cue_index, outcome_index, max_len,
         mapping from cues to indices. The dictionary should include only the cues to keep in the data
     outcome_index: dict
         mapping from outcomes to indices. The dictionary should include only the outcomes to keep in the data
-    max_len: int
-        Consider only 'max_len' first tokens in a sequence
-    embedding_input: str, numpy matrix or None
-        three possible choices: (1) if embedding_input = 'learn', learn embedding vectors from scratch while 
-        training the model. An embedding layer will be added to the network; (2) if embedding_input = 'path', 
-        extract embedding vectors from an embedding text file given in 'path' (it is imporant that it is a 
-        text file); (3) Use the already prepared embedding matrix for training. You can use 
-        prepare_embedding_matrix() from the preprocessing module. Default: None
-    embedding_dim: int or None
-        Default: 50
     shuffle_epoch: Boolean
         whether to shuffle the data after every epoch
     num_threads: int
@@ -366,16 +358,36 @@ def train_FNN(data_train, data_valid, cue_index, outcome_index, max_len,
     metrics: list
     params: dict
         model parameters:
-        'epochs'
-        'batch_size'
-        'hidden_layers'
-        'hidden_neuron'
-        'lr'
-        'dropout'
-        'optimizer'
-        'losses'
-        'activation'
-        'last_activation'
+        'max_len': int
+            Consider only 'max_len' first tokens in a cue sequence. Default: 10   
+        'embedding_input': str, numpy matrix or None
+            There are 3 possible choices: (1) if embedding_input = 'learn', learn embedding vectors from scratch while 
+            training the model. An embedding layer will be added to the network; (2) if embedding_input = 'path', 
+            extract embedding vectors from an embedding text file given in 'path' (it is imporant that it is a 
+            text file); (3) Use the already prepared embedding matrix for training. You can use 
+            prepare_embedding_matrix() from the preprocessing module. Default: None
+        'embedding_dim': int or None
+            Length of the cue embedding vectors. Default: 50
+        'epochs': int
+            Number of passes through the entire training dataset that has to be completed. Default: 1
+        'batch_size': int
+            Number of training examples to use for each update
+        'hidden_layers': int
+            Number of hidden layers
+        'hidden_neuron': int
+            Number of neurons in the LSTM layer
+        'lr': float
+            Learning rate
+        'dropout': float
+            Dropout in the LSTM layer
+        'optimizer': class
+            Keras optimizer function
+        'losses': func
+            Keras loss function
+        'activation': func
+            Keras activation in each layer
+        'last_activation': str
+            Keras activation in the output layer
 
     Returns
     -------
@@ -417,24 +429,30 @@ def train_FNN(data_train, data_valid, cue_index, outcome_index, max_len,
             metrics[i] = recall
         elif m == 'f1score':
             metrics[i] = f1score
+    
+    # Extract from the params dict the parameters that are used repeatedly to reduce run time
+    max_len = params['max_len']
+    batch_size = params['batch_size']
 
     ### Initialise the model
     model = Sequential()  
 
     ### Add embedding layer if requested + decide vector encoding type
-    if not embedding_input:
+    if not params['embedding_input']:
         vector_encoding_0 = 'onehot'
     else:
         vector_encoding_0 = 'embedding'
-        if embedding_input == 'learn':
-            model.add(Embedding(num_cues+1, embedding_dim, input_length = max_len))
-        elif isinstance(embedding_input, str) and not embedding_input == 'learn': # if pre-trained embedding provided
-            embedding_dim = extract_embedding_dim(embedding_input) # Extract embedding dimension
-            embedding_mat = prepare_embedding_matrix(embedding_input, cue_index)
-            model.add(Embedding(num_cues+1, embedding_dim, input_length=max_len, weights=[embedding_mat], trainable=False)) 
-        elif isinstance(embedding_input, np.ndarray):
-            embedding_dim = extract_embedding_dim(embedding_input) # Extract embedding dimension
-            model.add(Embedding(num_cues+1, embedding_dim, input_length=max_len, weights=[embedding_input], trainable=False))
+        if params['embedding_input'] == 'learn':
+            model.add(Embedding(num_cues+1, params['embedding_dim'], input_length = max_len))
+        elif isinstance(params['embedding_input'], str) and not params['embedding_input'] == 'learn': # if pre-trained embedding provided
+            params['embedding_dim'] = extract_embedding_dim(params['embedding_input']) # Extract embedding dimension
+            embedding_mat = prepare_embedding_matrix(params['embedding_input'], cue_index)
+            model.add(Embedding(num_cues+1, params['embedding_dim'], input_length = max_len, 
+                                weights = [embedding_mat], trainable = False)) 
+        elif isinstance(params['embedding_input'], np.ndarray):
+            params['embedding_dim'] = extract_embedding_dim(params['embedding_input']) # Extract embedding dimension
+            model.add(Embedding(num_cues+1, params['embedding_dim'], input_length = max_len, 
+                                weights = [params['embedding_input']], trainable = False))
         model.add(Flatten())
 
     ### Add other layers depending on the parameter 'hidden_layers'
@@ -476,7 +494,7 @@ def train_FNN(data_train, data_valid, cue_index, outcome_index, max_len,
 
     ### Initiate the generators for the train abd valid data
     train_gen = generator_train(data = data_train, 
-                                batch_size = params['batch_size'],
+                                batch_size = batch_size,
                                 num_cues = num_cues,
                                 num_outcomes = num_outcomes,
                                 cue_index = cue_index,
@@ -485,7 +503,7 @@ def train_FNN(data_train, data_valid, cue_index, outcome_index, max_len,
                                 vector_encoding = vector_encoding_0,
                                 shuffle_epoch = shuffle_epoch)
     valid_gen = generator_valid(data = data_valid, 
-                                batch_size = params['batch_size'],
+                                batch_size = batch_size,
                                 num_cues = num_cues,
                                 num_outcomes = num_outcomes,
                                 cue_index = cue_index,
@@ -838,11 +856,13 @@ class generator_df_LSTM(keras.utils.Sequence):
         # Generate data
         return X, Y
 
-def train_LSTM(data_train, data_valid, cue_index, outcome_index, max_len, 
-               embedding_input = None, embedding_dim = 50,
+def train_LSTM(data_train, data_valid, cue_index, outcome_index,
                shuffle_epoch = False, num_threads = 1, verbose = 0,
                metrics = ['accuracy', 'precision', 'recall', 'f1score'],
-               params = {'epochs': 1, # number of iterations on the full set 
+               params = {'max_len': 10,
+                         'embedding_input': None,
+                         'embedding_dim': None,
+                         'epochs': 1, # number of iterations on the full set 
                          'batch_size': 128, 
                          'hidden_neuron':64, # number of neurons in the input layer 
                          'lr': 0.0001, # learning rate       
@@ -863,16 +883,6 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
         mapping from cues to indices. The dictionary should include only the cues to keep in the data
     outcome_index: dict
         mapping from outcomes to indices. The dictionary should include only the outcomes to keep in the data
-    max_len: int
-        Consider only 'max_len' first tokens in a sequence  
-    embedding_input: str, numpy matrix or None
-        three possible choices: (1) if embedding_input = 'learn', learn embedding vectors from scratch while 
-        training the model. An embedding layer will be added to the network; (2) if embedding_input = 'path', 
-        extract embedding vectors from an embedding text file given in 'path' (it is imporant that it is a 
-        text file); (3) Use the already prepared embedding matrix for training. You can use 
-        prepare_embedding_matrix() from the preprocessing module. Default: None
-    embedding_dim: int or None
-        Default: 50
     shuffle_epoch: Boolean
         whether to shuffle the data after every epoch
     num_threads: int
@@ -882,14 +892,32 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
     metrics: list
     params: dict
         model parameters:
-        'epochs'
-        'batch_size'
-        'hidden_neuron'
-        'lr'
-        'dropout'
-        'optimizer'
-        'losses'
-        'last_activation'
+        'max_len': int
+            Consider only 'max_len' first tokens in a cue sequence. Default: 10 
+        'embedding_input': str, numpy matrix or None
+            There are 3 possible choices: (1) if embedding_input = 'learn', learn embedding vectors from scratch while 
+            training the model. An embedding layer will be added to the network; (2) if embedding_input = 'path', 
+            extract embedding vectors from an embedding text file given in 'path' (it is imporant that it is a 
+            text file); (3) Use the already prepared embedding matrix for training. You can use 
+            prepare_embedding_matrix() from the preprocessing module. Default: None
+        'embedding_dim': int or None
+            Length of the cue embedding vectors. Default: 50
+        'epochs': int
+            Number of passes through the entire training dataset that has to be completed. Default: 1
+        'batch_size': int
+            Number of training examples to use for each update
+        'hidden_neuron': int
+            Number of neurons in the LSTM layer
+        'lr': float
+            Learning rate
+        'dropout': float
+            Dropout in the LSTM layer
+        'optimizer': class
+            Keras optimizer function
+        'losses': func
+            Keras loss function
+        'last_activation': str
+            Keras activation in the output layer
 
     Returns
     -------
@@ -932,28 +960,33 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
         elif m == 'f1score':
             metrics[i] = f1score
 
-    
+    # Extract from the params dict the parameters that are used repeatedly to reduce run time
+    max_len = params['max_len']
+    batch_size = params['batch_size']
+
     ### Initialise the model
     model = Sequential()  
 
     ### Add embedding layer if requested + decide vector encoding type
-    if not embedding_input:
+    if not params['embedding_input']:
         vector_encoding_0 = 'onehot'
     else:
         vector_encoding_0 = 'embedding'
-        if embedding_input == 'learn':
-            model.add(Embedding(num_cues+1, embedding_dim, input_length = max_len))
-        elif isinstance(embedding_input, str) and not embedding_input == 'learn': # if pre-trained embedding provided
-            embedding_dim = extract_embedding_dim(embedding_input) # Extract embedding dimension
-            embedding_mat = prepare_embedding_matrix(embedding_input, cue_index)
-            model.add(Embedding(num_cues+1, embedding_dim, input_length=max_len, weights=[embedding_mat], trainable=False)) 
-        elif isinstance(embedding_input, np.ndarray):
-            embedding_dim = extract_embedding_dim(embedding_input) # Extract embedding dimension
-            model.add(Embedding(num_cues+1, embedding_dim, input_length=max_len, weights=[embedding_input], trainable=False))
+        if params['embedding_input'] == 'learn':
+            model.add(Embedding(num_cues+1, params['embedding_dim'], input_length = max_len))
+        elif isinstance(params['embedding_input'], str) and not params['embedding_input'] == 'learn': # if pre-trained embedding provided
+            params['embedding_dim'] = extract_embedding_dim(params['embedding_input']) # Extract embedding dimension
+            embedding_mat = prepare_embedding_matrix(params['embedding_input'], cue_index)
+            model.add(Embedding(num_cues+1, params['embedding_dim'], input_length = max_len, 
+                                weights = [embedding_mat], trainable = False)) 
+        elif isinstance(params['embedding_input'], np.ndarray):
+            params['embedding_dim'] = extract_embedding_dim(params['embedding_input']) # Extract embedding dimension
+            model.add(Embedding(num_cues+1, params['embedding_dim'], input_length = max_len, 
+                                weights = [params['embedding_input']], trainable = False))
         #model.add(Flatten())
 
     # LSTM layer 
-    model.add(LSTM(params['hidden_neuron'], return_sequences = False, input_shape = (max_len, num_cues)))
+    model.add(LSTM(params['hidden_neuron'], return_sequences = False, input_shape = (max_len, num_cues))) 
 
     # Add drop out
     model.add(Dropout(params['dropout']))
@@ -969,7 +1002,7 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
 
     ### Initiate the generators for the train, valid and test data
     train_gen = generator_train(data = data_train, 
-                                batch_size = params['batch_size'],
+                                batch_size = batch_size,
                                 num_cues = num_cues,
                                 num_outcomes = num_outcomes,
                                 cue_index = cue_index,
@@ -978,7 +1011,7 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
                                 vector_encoding = vector_encoding_0,
                                 shuffle_epoch = shuffle_epoch)
     valid_gen = generator_valid(data = data_valid, 
-                                batch_size = params['batch_size'],
+                                batch_size = batch_size,
                                 num_cues = num_cues,
                                 num_outcomes = num_outcomes,
                                 cue_index = cue_index,
