@@ -15,7 +15,7 @@ import shutil
 
 import keras
 from keras.models import Sequential, load_model
-from keras.layers import Dropout, Dense, LSTM, CuDNNLSTM, Embedding, Flatten
+from keras.layers import Dropout, Dense, LSTM, Embedding, Flatten
 from keras.preprocessing.sequence import pad_sequences
 from keras import optimizers
 from keras import activations
@@ -840,8 +840,7 @@ class generator_df_LSTM(keras.utils.Sequence):
 
 def train_LSTM(data_train, data_valid, cue_index, outcome_index, max_len, 
                embedding_input = None, embedding_dim = 50,
-               shuffle_epoch = False, use_cuda = False, 
-               num_threads = 1, verbose = 0,
+               shuffle_epoch = False, num_threads = 1, verbose = 0,
                metrics = ['accuracy', 'precision', 'recall', 'f1score'],
                params = {'epochs': 1, # number of iterations on the full set 
                          'batch_size': 128, 
@@ -876,9 +875,6 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
         Default: 50
     shuffle_epoch: Boolean
         whether to shuffle the data after every epoch
-    use_cuda: Boolean
-        whether to use the cuda optimised LSTM layer for faster training. Use only if 
-        an Nvidia GPU is available with CUDA installed
     num_threads: int
         maximum number of processes to use - it should be >= 1. Default: 1
     verbose: int (0, 1, or 2)
@@ -957,10 +953,7 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
         #model.add(Flatten())
 
     # LSTM layer 
-    if use_cuda == False:
-        model.add(LSTM(params['hidden_neuron'], return_sequences = False, input_shape = (max_len, num_cues))) 
-    else:
-        model.add(CuDNNLSTM(params['hidden_neuron'], return_sequences = False, input_shape = (max_len, num_cues)))
+    model.add(LSTM(params['hidden_neuron'], return_sequences = False, input_shape = (max_len, num_cues)))
 
     # Add drop out
     model.add(Dropout(params['dropout']))
@@ -1016,7 +1009,7 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
  
 def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
                      params, prop_grid, tuning_output_file, shuffle_epoch = False, 
-                     shuffle_grid = True, use_cuda = False, num_threads = 1, verbose = 1):
+                     shuffle_grid = True, num_threads = 1, verbose = 1):
 
     """ Grid search for LSTM
 
@@ -1051,9 +1044,6 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
     shuffle_grid: Boolean
         whether to shuffle the parameter grid or respect the same order of parameters. Default: True
         provided in `params'
-    use_cuda: Boolean
-        whether to use the cuda optimised LSTM layer for faster training. Use only if 
-        an Nvidia GPU is available with CUDA installed
     num_threads: int
         maximum number of processes to use - it should be >= 1. Default: 1
     verbose: int (0 or 1)
@@ -1128,8 +1118,7 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index, max_len,
                                          cue_index = cue_index, 
                                          outcome_index = outcome_index, 
                                          max_len = max_len,
-                                         shuffle_epoch = shuffle_epoch, 
-                                         use_cuda = use_cuda, 
+                                         shuffle_epoch = shuffle_epoch,
                                          num_threads = num_threads, 
                                          verbose = 0,
                                          metrics = ['accuracy', 'precision', 'recall', 'f1score'],
@@ -1637,7 +1626,7 @@ def grid_search_NDL(data_train, data_valid, params, prop_grid,
 def train(model, data_train, data_valid, cue_index, outcome_index, 
           params, shuffle_epoch = False, num_threads = 1, 
           verbose = 0, metrics = ['accuracy', 'precision', 'recall', 'f1score'], 
-          metric_average = 'macro', max_len = 10, use_cuda = False, chunksize = 10000,
+          metric_average = 'macro', max_len = 10, chunksize = 10000,
           temp_dir = os.path.join(os.getcwd(), 'TEMP_TRAIN_DIRECTORY'), remove_temp_dir = True):
 
     """ Train a language learning model
@@ -1680,9 +1669,6 @@ def train(model, data_train, data_valid, cue_index, outcome_index,
     max_len: int
         Can be used only when training LSTM. It allows to consider only 'max_len' first tokens in a sequence. 
         Default: 10  
-    use_cuda: Boolean
-        Can be used only when training LSTM. It encodes whether to use the cuda optimised LSTM layer for faster 
-        training. Use only if an Nvidia GPU is available with CUDA installed
     chunksize : int
         Can be used only when training NDL. It controls the number of lines to use for computing the accuracy in 
         NDL training. This is done through the computation of the activation matrix for these lines. Default: 10000 
@@ -1717,8 +1703,7 @@ def train(model, data_train, data_valid, cue_index, outcome_index,
                                  cue_index = cue_index, 
                                  outcome_index = outcome_index, 
                                  max_len = max_len,
-                                 shuffle_epoch = shuffle_epoch, 
-                                 use_cuda = use_cuda, 
+                                 shuffle_epoch = shuffle_epoch,  
                                  num_threads = num_threads, 
                                  verbose = verbose,
                                  metrics = metrics,
@@ -1750,7 +1735,7 @@ def train(model, data_train, data_valid, cue_index, outcome_index,
 def grid_search(model, data_train, data_valid, cue_index, 
                 outcome_index, params, prop_grid, tuning_output_file, 
                 shuffle_epoch = False, shuffle_grid = True, 
-                num_threads = 1, verbose = 1, max_len = 10, use_cuda = False, 
+                num_threads = 1, verbose = 1, max_len = 10, 
                 chunksize = 10000, temp_dir = os.path.join(os.getcwd(), 'TEMP_TRAIN_DIRECTORY'), 
                 remove_temp_dir = True):
 
@@ -1788,9 +1773,6 @@ def grid_search(model, data_train, data_valid, cue_index,
     max_len: int
         Can be used only when training LSTM. It allows to consider only 'max_len' first tokens in a sequence. 
         Default: 10  
-    use_cuda: Boolean
-        Can be used only when training LSTM. It encodes whether to use the cuda optimised LSTM layer for faster 
-        training. Use only if an Nvidia GPU is available with CUDA installed
     chunksize : int
         Can be used only when training NDL. It controls the number of lines to use for computing the accuracy in 
         NDL training. This is done through the computation of the activation matrix for these lines. Default: 10000 
@@ -1831,8 +1813,7 @@ def grid_search(model, data_train, data_valid, cue_index,
                          prop_grid = prop_grid, 
                          tuning_output_file = tuning_output_file,         
                          shuffle_epoch = shuffle_epoch, 
-                         shuffle_grid = shuffle_grid, 
-                         use_cuda = use_cuda, 
+                         shuffle_grid = shuffle_grid,  
                          num_threads = num_threads, 
                          verbose = verbose)
  
