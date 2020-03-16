@@ -1777,7 +1777,7 @@ def grid_search_NDL(data_train, data_valid, params, prop_grid,
 def train(model, data_train, data_valid, cue_index, outcome_index, 
           params, shuffle_epoch = False, num_threads = 1, 
           verbose = 0, metrics = ['accuracy', 'precision', 'recall', 'f1score'], 
-          metric_average = 'macro', max_len = 10, chunksize = 10000,
+          metric_average = 'macro', chunksize = 10000,
           temp_dir = os.path.join(os.getcwd(), 'TEMP_TRAIN_DIRECTORY'), remove_temp_dir = True):
 
     """ Train a language learning model
@@ -1816,10 +1816,7 @@ def train(model, data_train, data_valid, cue_index, outcome_index,
         'weighted': calculate metrics for each label, and find their average weighted 
                     by support (the number of true instances for each label).
         'samples': calculate metrics for each instance, and find their average (differs 
-                   from accuracy_score only in multilabel classification)
-    max_len: int
-        Can be used only when training LSTM. It allows to consider only 'max_len' first tokens in a sequence. 
-        Default: 10  
+                   from accuracy_score only in multilabel classification) 
     chunksize : int
         Can be used only when training NDL. It controls the number of lines to use for computing the accuracy in 
         NDL training. This is done through the computation of the activation matrix for these lines. Default: 10000 
@@ -1853,8 +1850,7 @@ def train(model, data_train, data_valid, cue_index, outcome_index,
                                  data_valid = data_valid, 
                                  cue_index = cue_index, 
                                  outcome_index = outcome_index, 
-                                 max_len = max_len,
-                                 shuffle_epoch = shuffle_epoch,  
+                                 shuffle_epoch = shuffle_epoch, 
                                  num_threads = num_threads, 
                                  verbose = verbose,
                                  metrics = metrics,
@@ -1882,12 +1878,11 @@ def train(model, data_train, data_valid, cue_index, outcome_index,
   
     return hist, model
 
-
 def grid_search(model, data_train, data_valid, cue_index, 
                 outcome_index, params, prop_grid, tuning_output_file, 
                 shuffle_epoch = False, shuffle_grid = True, 
-                num_threads = 1, verbose = 1, max_len = 10, 
-                chunksize = 10000, temp_dir = os.path.join(os.getcwd(), 'TEMP_TRAIN_DIRECTORY'), 
+                num_threads = 1, verbose = 1, chunksize = 10000, 
+                temp_dir = os.path.join(os.getcwd(), 'TEMP_TRAIN_DIRECTORY'), 
                 remove_temp_dir = True):
 
     """ Grid search for the language learning model
@@ -1921,9 +1916,6 @@ def grid_search(model, data_train, data_valid, cue_index,
         maximum number of processes to use - it should be >= 1. Default: 1
     verbose: int (0, 1, or 2)
         verbosity mode. 0 = silent, 1 = progress bar, 2 = one line per epoch.
-    max_len: int
-        Can be used only when training LSTM. It allows to consider only 'max_len' first tokens in a sequence. 
-        Default: 10  
     chunksize : int
         Can be used only when training NDL. It controls the number of lines to use for computing the accuracy in 
         NDL training. This is done through the computation of the activation matrix for these lines. Default: 10000 
@@ -1959,7 +1951,6 @@ def grid_search(model, data_train, data_valid, cue_index,
                          data_valid = data_valid, 
                          cue_index = cue_index, 
                          outcome_index = outcome_index,
-                         max_len = max_len, 
                          params = params, 
                          prop_grid = prop_grid, 
                          tuning_output_file = tuning_output_file,         
@@ -1990,9 +1981,6 @@ def grid_search(model, data_train, data_valid, cue_index,
     # Raise an error if a non-supported model is entered 
     else:
         raise ValueError(f'The entered model "{model}" is not supported')
-
-  
-    return hist, model
     
 
 ##################################
