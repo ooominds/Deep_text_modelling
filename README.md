@@ -82,6 +82,11 @@ All you need to start using the package is to copy the folder inside 'package' i
 - scikit-learn 
 - talos (optional)
 
-## Author
+## Authors
 
-Adnane Ez-zizi
+Dr Adnane Ez-zizi (a.ez-zizi@bham.ac.uk) \
+Dr Petar Milin (p.milin@bham.ac.uk)
+
+## Funder acknowledgement 
+
+This project was supported by a Leverhulme Trust Research Leadership Award (RL-2016-001) to Prof Dagmar Divjak.
