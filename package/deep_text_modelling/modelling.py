@@ -15,7 +15,8 @@ import shutil
 
 import keras
 from keras.models import Sequential, load_model
-from keras.layers import Dropout, Dense, LSTM, CuDNNLSTM
+from keras.layers import Dropout, Dense, LSTM, CuDNNLSTM, Embedding, Flatten
+from keras.preprocessing.sequence import pad_sequences
 from keras import optimizers
 from keras import activations
 from keras import losses
@@ -31,7 +32,7 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 
 ### Import local packages
 from deep_text_modelling.evaluation import recall, precision, f1score
-from deep_text_modelling.preprocessing import df_to_gz, IndexedFile
+from deep_text_modelling.preprocessing import df_to_gz, IndexedFile, prepare_embedding_matrix, extract_embedding_dim
 
 ###############
 # Tokenisation
