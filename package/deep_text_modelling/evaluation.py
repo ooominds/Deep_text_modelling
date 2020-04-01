@@ -107,9 +107,8 @@ def f1score(y_true, y_pred):
     re = recall(y_true, y_pred)
     return 2 * ((pr*re) / (pr+re+K.epsilon()))
 
-def predict_proba_eventfile_FNN(model, data_test, num_cues, num_outcomes, cue_index, 
-                                outcome_index, use_multiprocessing = False, 
-                                num_threads = 0, verbose = 0):
+def predict_proba_eventfile_FNN(model, data_test, cue_index, outcome_index, max_len, 
+                                vector_encoding, num_threads = 1, verbose = 0):
 
     """ extract the most likely outcomes based on a 1d-array of predicted probabilities 
 
@@ -119,14 +118,14 @@ def predict_proba_eventfile_FNN(model, data_test, num_cues, num_outcomes, cue_in
         keras model output
     data_test: dataframe or class
         dataframe or indexed text file containing test data
-    num_cues: int
-        number of allowed cues
-    num_outcomes: int
-        number of allowed outcomes
     cue_index: dict
         mapping from cues to indices
     outcome_index: dict
         mapping from outcomes to indices 
+    max_len: int or None
+        Consider only 'max_len' first tokens in a sequence. If None, all cues are considered
+    vector_encoding: str
+        Whether to use one-hot encoding (='onehot') or embedding (='embedding').  
     use_multiprocessing: Boolean
         whether to generate batches in parallel. Default: False
     num_threads: int
@@ -153,21 +152,35 @@ def predict_proba_eventfile_FNN(model, data_test, num_cues, num_outcomes, cue_in
     else:
         raise ValueError("data_test should be either a path to an event file, a dataframe or an indexed text file")
 
+    ### Extract number of cues and outcomes from the index systems
+    num_cues = len(cue_index)
+    num_outcomes = len(outcome_index)
+
     test_gen = generator(data = data_test, 
                          batch_size = 1,
                          num_cues = num_cues,
                          num_outcomes = num_outcomes,
                          cue_index = cue_index,
+                         max_len = max_len,
+                         vector_encoding = vector_encoding, 
                          outcome_index = outcome_index,
                          shuffle_epoch = False)
 
-    proba_pred = model.predict_generator(test_gen,
-                                         use_multiprocessing = use_multiprocessing, 
-                                         workers = num_threads,
-                                         verbose = verbose)
+    # No parallel processing if the inputs are text files (still need to be sorted out)
+    if isinstance(data_test, pd.DataFrame): 
+        proba_pred = model.predict_generator(test_gen,
+                                             use_multiprocessing = True, 
+                                             workers = num_threads-1,
+                                             verbose = verbose)
+    else: 
+        proba_pred = model.predict_generator(test_gen,
+                                             use_multiprocessing = False, 
+                                             workers = 0,
+                                             verbose = verbose)
+
     return proba_pred
 
-def predict_proba_oneevent_FNN(model, cue_seq, num_cues, cue_index):
+def predict_proba_oneevent_FNN(model, cue_seq, num_cues, cue_index, max_len):
 
     """ extract the most likely outcomes based on a 1d-array of predicted probabilities 
 
@@ -181,6 +194,8 @@ def predict_proba_oneevent_FNN(model, cue_seq, num_cues, cue_index):
         number of allowed cues
     cue_index: dict
         mapping from cues to indices
+    max_len: int or None
+        Consider only 'max_len' first tokens in a sequence. If None, all cues are considered
 
     Returns
     -------
@@ -190,7 +205,7 @@ def predict_proba_oneevent_FNN(model, cue_seq, num_cues, cue_index):
 
     from deep_text_modelling.modelling import seq_to_onehot_1darray
 
-    cue_onehot = seq_to_onehot_1darray(cue_seq, index_system = cue_index, N_tokens = num_cues)
+    cue_onehot = seq_to_onehot_1darray(cue_seq, index_system = cue_index, N_tokens = num_cues, max_len = max_len)
     cue_onehot = np.expand_dims(cue_onehot, 0)
     proba_pred = np.squeeze(model.predict(x = cue_onehot, batch_size = 1))
 
@@ -313,7 +328,7 @@ def top_predicted_outcomes(proba_pred, index_to_outcome_dict, N_top = 3):
     top_outcomes = {index_to_outcome_dict[i+1]:proba_pred[i] for i in idxs_top}
     return top_outcomes
 
-def plot_learning_curve(history_dict, metric = 'acc', set = 'train'):
+def plot_learning_curve(history_dict, metric = 'accuracy', set = 'train'):
 
     """ plot learning curve given a keras history object and a metric
 
@@ -322,7 +337,7 @@ def plot_learning_curve(history_dict, metric = 'acc', set = 'train'):
     history: class
         keras history object
     metric: str
-        performance metric to use ('loss', 'acc', 'precision', 'recall', 'f1score')
+        performance metric to use ('loss', 'accuracy', 'precision', 'recall', 'f1score')
     set: str
         'train' or 'valid' or 'train_valid'
 
