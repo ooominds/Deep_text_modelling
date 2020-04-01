@@ -368,7 +368,7 @@ def train_FNN(data_train, data_valid, cue_index, outcome_index,
             text file); (3) Use the already prepared embedding matrix for training. You can use 
             prepare_embedding_matrix() from the preprocessing module. Default: None
         'embedding_dim': int or None
-            Length of the cue embedding vectors. Default: 50
+            Length of the cue embedding vectors. Default: None
         'epochs': int
             Number of passes through the entire training dataset that has to be completed. Default: 1
         'batch_size': int
@@ -561,7 +561,7 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
             text file); (3) Use the already prepared embedding matrix for training. You can use 
             prepare_embedding_matrix() from the preprocessing module. Default: None
         'embedding_dim': int or None
-            Length of the cue embedding vectors. Default: 50
+            Length of the cue embedding vectors. Default:None
         'epochs': int
             Number of passes through the entire training dataset that has to be completed. Default: 1
         'batch_size': int
@@ -698,10 +698,10 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
                     if k == 'epochs':
                         i_epochs = ind
                     elif (k == 'embedding_input') and isinstance(v, str) and (v != 'learn'):
-                        # Extract the name of embedding fron the path
+                        # Extract the name of embedding from the path
                         row_values[ind] = ntpath.basename(v)[:-4]
                     elif (k == 'embedding_input') and not v:
-                        row_values[ind] = 'one_hot' 
+                        row_values[ind] = 'onehot' 
                     elif (k == 'embedding_dim') and not v:
                         row_values[ind] = 0 
                     elif (k == 'activation') and not v:
@@ -1232,18 +1232,6 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index,
             # this will contain the values that will be recorded in each row. 
             # We start by copying the parameter values
             row_values = list(param_comb.values())
-                
-            # Get index of epochs and extract embedding name from the 'param_comb' dictionary
-            for ind, (k, v) in enumerate(param_comb.items()):
-                if k == 'epochs':
-                    i_epochs = ind
-                elif (k == 'embedding_input') and isinstance(v, str) and (v != 'learn'):
-                    # Extract the name of embedding fron the path
-                    row_values[ind] = ntpath.basename(v)[:-4]
-                elif (k == 'embedding_input') and not v:
-                    row_values[ind] = 'one_hot' 
-                elif (k == 'embedding_dim') and not v:
-                    row_values[ind] = 0 
 
             # Check if the current parameter combination has already been processed in the grid search
             if row_values in param_comb_sofar:
@@ -1270,7 +1258,7 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index,
                         # Extract the name of embedding fron the path
                         row_values[ind] = ntpath.basename(v)[:-4]
                     elif (k == 'embedding_input') and not v:
-                        row_values[ind] = 'one_hot' 
+                        row_values[ind] = 'onehot' 
                     elif (k == 'embedding_dim') and not v:
                         row_values[ind] = 0 
                     elif (k == 'activation') and not v:
@@ -2060,7 +2048,10 @@ def export_history(history_dict, path):
         export a dictionary as a json file
     """
 
-    # Save it as a json file
+    # Convert float numbers in the lists to str
+    for k, v in history_dict.items(): 
+        history_dict[k] = list(map(str, v))
+    # Save it as a json file  
     json.dump(history_dict, open(path, 'w'))
 
 def import_history(path):
@@ -2078,5 +2069,10 @@ def import_history(path):
         history dictionary containing the performance scores (loss and other metrics) for each epoch
     """
 
+    # Load the disctionary from the json file  
     history_dict = json.load(open(path, 'r'))
+    # Convert the lists of str into lists of floats
+    for k, v in history_dict.items(): 
+        history_dict[k] = list(map(float, v))
+
     return history_dict
