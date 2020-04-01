@@ -152,6 +152,9 @@ def predict_proba_eventfile_FNN(model, data_test, cue_index, outcome_index, max_
     else:
         raise ValueError("data_test should be either a path to an event file, a dataframe or an indexed text file")
 
+    if vector_encoding not in ('onehot', 'embedding'):
+        raise ValueError("vector_encoding should be either 'onehot' or 'embedding'")
+
     ### Extract number of cues and outcomes from the index systems
     num_cues = len(cue_index)
     num_outcomes = len(outcome_index)
@@ -180,7 +183,7 @@ def predict_proba_eventfile_FNN(model, data_test, cue_index, outcome_index, max_
 
     return proba_pred
 
-def predict_proba_oneevent_FNN(model, cue_seq, num_cues, cue_index, max_len):
+def predict_proba_oneevent_FNN(model, cue_seq, cue_index, max_len, vector_encoding):
 
     """ extract the most likely outcomes based on a 1d-array of predicted probabilities 
 
@@ -190,12 +193,12 @@ def predict_proba_oneevent_FNN(model, cue_seq, num_cues, cue_index, max_len):
         keras model output
     cue_seq: str
         underscore-seperated sequence of cues
-    num_cues: int
-        number of allowed cues
     cue_index: dict
         mapping from cues to indices
     max_len: int or None
         Consider only 'max_len' first tokens in a sequence. If None, all cues are considered
+    vector_encoding: str
+        Whether to use one-hot encoding (='onehot') or embedding (='embedding'). 
 
     Returns
     -------
@@ -203,9 +206,18 @@ def predict_proba_oneevent_FNN(model, cue_seq, num_cues, cue_index, max_len):
         array containing the predicted probabilities
     """
 
-    from deep_text_modelling.modelling import seq_to_onehot_1darray
+    from deep_text_modelling.modelling import seq_to_onehot_1darray, seq_to_integers_1darray
 
-    cue_onehot = seq_to_onehot_1darray(cue_seq, index_system = cue_index, N_tokens = num_cues, max_len = max_len)
+    ### Extract number of cues from the cue index system
+    num_cues = len(cue_index)
+
+    if vector_encoding == 'onehot': # One-hot encoding
+        cue_onehot = seq_to_onehot_1darray(cue_seq, index_system = cue_index, N_tokens = num_cues, max_len = max_len)
+    elif vector_encoding == 'embedding': # Embedding
+        cue_onehot = seq_to_integers_1darray(cue_seq, index_system = cue_index, N_tokens = num_cues, max_len = max_len)
+    else:
+        raise ValueError("vector_encoding should be either 'onehot' or 'embedding'")
+
     cue_onehot = np.expand_dims(cue_onehot, 0)
     proba_pred = np.squeeze(model.predict(x = cue_onehot, batch_size = 1))
 
