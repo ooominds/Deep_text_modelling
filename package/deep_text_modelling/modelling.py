@@ -1336,8 +1336,9 @@ class NDLmodel():
 
 def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
               shuffle_epoch = False, num_threads = 1, chunksize = 10000, verbose = 1, 
-              temp_dir = os.path.join(os.getcwd(), 'TEMP_TRAIN_DIRECTORY'), remove_temp_dir = True,
-              metrics = ['accuracy', 'precision', 'recall', 'f1score'], metric_average = 'macro',
+              temp_dir = None, remove_temp_dir = True,
+              metrics = ['accuracy', 'precision', 'recall', 'f1score'], 
+              metric_average = 'macro',
               params = {'epochs': 1, # number of iterations over the full set 
                         'lr': 0.0001}):
 
@@ -1365,10 +1366,10 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
     verbose: int (0, 1)
         verbosity mode. 0 = silent, 1 = one line per epoch.
     temp_dir: str
-        directory where to store temporary files while training NDL. Default: a folder 'TEMP_TRAIN_DIRECTORY' 
-        is created in the current working directory    
+        directory where to store temporary files while training NDL. Default: None (will create a folder 
+        'TEMP_TRAIN_DIRECTORY' in the current working directory    
     remove_temp_dir: Boolean
-        whether or not to remove the temporary directory. Default: True
+        whether or not to remove the temporary directory if one was automatically created. Default: True
     metrics: list
         for now only ['accuracy', 'precision', 'recall', 'f1score'] is accepted
     metric_average: str
@@ -1396,6 +1397,20 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
     from deep_text_modelling.evaluation import activations_to_predictions, predict_outcomes_NDL
     from deep_text_modelling.preprocessing import df_to_gz
 
+    # Create a temporary directory if not provided
+    if not temp_dir:
+        temp_dir0 = os.path.join(os.getcwd(), 'TEMP_TRAIN_DIRECTORY')
+        # Add warning if the creation of a temporary directory fails 
+        # (e.g. folder with the same name already existing)
+        try:
+            os.mkdir(temp_dir0) 
+        except OSError:
+            print("Creation of a temporary directory %s failed. This could be because ", 
+                  "a folder with the same name already exists or you don't have the ", 
+                  "required admin rights on the computer)." % temp_dir0)
+    else:
+        temp_dir0 = temp_dir
+
     ### Path to the train event file
     if isinstance(data_train, str):     
         events_train_path = data_train
@@ -1413,7 +1428,7 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
         df_to_gz(data = data_valid, gz_outfile = events_valid_path)
     else:
         raise ValueError("data_valid should be either a path to an event file or a dataframe")
-
+        
     ### Paths to the filtered files
     filtered_events_train_path = os.path.join(temp_dir, 'filtered_events_train.gz')  
     filtered_events_valid_path = os.path.join(temp_dir, 'filtered_events_valid.gz')  
@@ -1472,24 +1487,26 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
 
             # Train ndl to get the weight matrix 
             weights = ndl(events = filtered_events_train_path,
-                        alpha = params['lr'], 
-                        betas = (1, 1),
-                        method = "openmp",
-                        weights = weights,
-                        number_of_threads = num_threads,
-                        remove_duplicates = True,
-                        temporary_directory = temp_dir,
-                        verbose = False)
+                          alpha = params['lr'], 
+                          betas = (1, 1),
+                          method = "openmp",
+                          weights = weights,
+                          number_of_threads = num_threads,
+                          remove_duplicates = True,
+                          temporary_directory = temp_dir0,
+                          verbose = False)
       
             # Predicted outcomes from the activations
-            y_train_pred = predict_outcomes_NDL(data_test = filtered_events_train_path, 
-                                                weights = weights, 
-                                                temp_dir = temp_dir,
+            y_train_pred = predict_outcomes_NDL(model = NDLmodel(weights),  
+                                                data_test = filtered_events_train_path,
+                                                temp_dir = temp_dir0,
+                                                remove_temp_dir = False,
                                                 chunksize = chunksize, 
                                                 num_threads = num_threads)
-            y_valid_pred = predict_outcomes_NDL(data_test = filtered_events_valid_path, 
-                                                weights = weights, 
-                                                temp_dir = temp_dir,
+            y_valid_pred = predict_outcomes_NDL(model = NDLmodel(weights), 
+                                                data_test = filtered_events_valid_path, 
+                                                temp_dir = temp_dir0,
+                                                remove_temp_dir = False,
                                                 chunksize = chunksize, 
                                                 num_threads = num_threads)
 
@@ -1576,19 +1593,18 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
             'val_f1score': val_f1score_hist
             }
 
-    ### Remove temporary directory if wanted
-    if remove_temp_dir:
+    ### Remove temporary directory if it was automatically created and the option was selected by the user
+    if remove_temp_dir and temp_dir:
         try:
-            shutil.rmtree(temp_dir)
+            shutil.rmtree(temp_dir0)
         except OSError as e:
-            print("Error: %s : %s" % (temp_dir, e.strerror))
+            print("Error: %s : %s" % (temp_dir0, e.strerror))
    
     return hist, model
 
 def grid_search_NDL(data_train, data_valid, params, prop_grid, 
                     tuning_output_file, cue_index = None, outcome_index = None, 
-                    temp_dir = os.path.join(os.getcwd(), 'TEMP_TRAIN_DIRECTORY'), 
-                    remove_temp_dir = True,   
+                    temp_dir = None, remove_temp_dir = True,   
                     metrics = ['accuracy', 'precision', 'recall', 'f1score'], 
                     metric_average = 'macro', shuffle_epoch = False, 
                     shuffle_grid = True, num_threads = 1, chunksize = 10000, 
@@ -1620,7 +1636,7 @@ def grid_search_NDL(data_train, data_valid, params, prop_grid,
         directory where to store temporary files while training NDL. Default: a folder 'TEMP_TRAIN_DIRECTORY' 
         is created in the current working directory    
     remove_temp_dir: Boolean
-        whether or not to remove the temporary directory. Default: True
+        whether or not to remove the temporary directory if one was automatically created. Default: True
     metrics: list
         for now only ['accuracy', 'precision', 'recall', 'f1score'] is accepted
     metric_average: str
@@ -1662,6 +1678,20 @@ def grid_search_NDL(data_train, data_valid, params, prop_grid,
     # Validation data
     if ((not isinstance(data_train, pd.DataFrame)) and (not isinstance(data_train, str))):
         raise ValueError("data_valid should be either a path to an event file or a dataframe")
+
+    # Create a temporary directory if not provided
+    if not temp_dir:
+        temp_dir0 = os.path.join(os.getcwd(), 'TEMP_TRAIN_DIRECTORY')
+        # Add warning if the creation of a temporary directory fails 
+        # (e.g. folder with the same name already existing)
+        try:
+            os.mkdir(temp_dir0) 
+        except OSError:
+            print("Creation of a temporary directory %s failed. This could be because ", 
+                  "a folder with the same name already exists or you don't have the ", 
+                  "required admin rights on the computer)." % temp_dir0)
+    else:
+        temp_dir0 = temp_dir
 
     ### Create a list of dictionaries giving all possible parameter combinations
     keys, values = zip(*params.items())
@@ -1716,7 +1746,7 @@ def grid_search_NDL(data_train, data_valid, params, prop_grid,
                                         num_threads = num_threads,
                                         chunksize = chunksize, 
                                         verbose = 0,
-                                        temp_dir = temp_dir,
+                                        temp_dir = temp_dir0,
                                         remove_temp_dir = False,
                                         metrics = metrics, 
                                         metric_average = metric_average,
@@ -1751,12 +1781,12 @@ def grid_search_NDL(data_train, data_valid, params, prop_grid,
                     csv_writer.writerow(row_values_j)
                     o.flush()
 
-    ### Remove temporary directory if wanted
-    if remove_temp_dir:
+    ### Remove temporary directory if it was automatically created and the option was selected by the user
+    if remove_temp_dir and temp_dir:
         try:
-            shutil.rmtree(temp_dir)
+            shutil.rmtree(temp_dir0)
         except OSError as e:
-            print("Error: %s : %s" % (temp_dir, e.strerror))
+            print("Error: %s : %s" % (temp_dir0, e.strerror))
 
 
 ###################################
@@ -1767,7 +1797,7 @@ def train(model, data_train, data_valid, cue_index, outcome_index,
           params, shuffle_epoch = False, num_threads = 1, 
           verbose = 0, metrics = ['accuracy', 'precision', 'recall', 'f1score'], 
           metric_average = 'macro', chunksize = 10000,
-          temp_dir = os.path.join(os.getcwd(), 'TEMP_TRAIN_DIRECTORY'), remove_temp_dir = True):
+          temp_dir = None, remove_temp_dir = True):
 
     """ Train a language learning model
 
@@ -1869,10 +1899,9 @@ def train(model, data_train, data_valid, cue_index, outcome_index,
 
 def grid_search(model, data_train, data_valid, cue_index, 
                 outcome_index, params, prop_grid, tuning_output_file, 
-                shuffle_epoch = False, shuffle_grid = True, 
+                shuffle_epoch = False, shuffle_grid = True, metric_average = 'macro', 
                 num_threads = 1, verbose = 1, chunksize = 10000, 
-                temp_dir = os.path.join(os.getcwd(), 'TEMP_TRAIN_DIRECTORY'), 
-                remove_temp_dir = True):
+                temp_dir = None, remove_temp_dir = True):
 
     """ Grid search for the language learning model
 

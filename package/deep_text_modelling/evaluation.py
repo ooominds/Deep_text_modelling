@@ -2,6 +2,7 @@ import os
 import numpy as np
 import xarray as xr
 import pandas as pd
+import shutil
 from keras import backend as K
 import matplotlib.pyplot as plt
 from itertools import islice
@@ -487,22 +488,57 @@ def chunk(iterable, chunksize):
     iterator = iter(iterable)
     return iter(lambda: list(islice(iterator, chunksize)), [])
 
-def predict_outcomes_NDL(data_test, weights, temp_dir, chunksize, num_threads = 1):
+def predict_outcomes_NDL(model, data_test, temp_dir = None, remove_temp_dir = True, 
+                         num_threads = 1, chunksize = 10000):
 
-    """compute outcome predictions by going through the corpus in chunks for memory efficiency"""
+    """ Generate outcome predictions for NDL
+
+    Parameters
+    ----------
+    model: class
+        NDL model outputs (contains weights and activations)
+    data_test: dataframe or class
+        dataframe or indexed text file containing test data
+    temp_dir: str
+        directory where to store the converted gz file if a dataframe is passed to data_test 
+        (needed to compute the activation matrix). Default: None (will create a folder 
+        'TEMP_TRAIN_DIRECTORY' in the current working directory    
+    remove_temp_dir: Boolean
+        whether or not to remove the temporary directory if one was automatically created. Default: True
+    num_threads: int
+        maximum number of processes to use when computing the activations is the data is unseen. Default: 1
+    chunksize : int
+        number of lines to use for computing the activation matrix for these lines. Default: 10000
+
+    Returns
+    -------
+    numpy array
+        array containing the predicted probabilities 
+    """
 
     from pyndl.activation import activation
     from deep_text_modelling.preprocessing import df_to_gz
+
+    # Create a temporary directory if not provided
+    if not temp_dir:
+        temp_dir0 = os.path.join(os.getcwd(), 'TEMP_TRAIN_DIRECTORY')
+        # Add warning if the creation of a temporary directory fails 
+        # (e.g. folder with the same name already existing)
+        try:
+            os.mkdir(temp_dir0) 
+        except OSError:
+            print("Creation of a temporary directory %s failed. This could be because ", 
+                  "a folder with the same name already exists or you don't have the ", 
+                  "required admin rights on the computer)." % temp_dir0)
+    else:
+        temp_dir0 = temp_dir
 
     ### Path to the train event file
     if isinstance(data_test, str):     
         events_test_path = data_test
     elif isinstance(data_test, pd.DataFrame):
-        if temp_dir:
-            events_test_path = os.path.join(temp_dir, 'data_test_temp.gz')
-            df_to_gz(data = data_test, gz_outfile = events_test_path)
-        else: 
-            raise ValueError("provide a path to a temporary directory for generating a temporary .gz event file")
+        events_test_path = os.path.join(temp_dir, 'data_test_temp.gz')
+        df_to_gz(data = data_test, gz_outfile = events_test_path)
     else:
         raise ValueError("data_test should be either a path to an event file or a dataframe")
 
@@ -510,12 +546,20 @@ def predict_outcomes_NDL(data_test, weights, temp_dir, chunksize, num_threads = 
     events = io.events_from_file(events_test_path)
     for events_chunk in chunk(events, chunksize):
         activations = activation(events = events_chunk, 
-                                 weights = weights,
+                                 weights = model.weights,
                                  number_of_threads = num_threads,
                                  remove_duplicates = True,
                                  ignore_missing_cues = True)
         # Predicted outcomes from the activations
         y_pred.extend(activations_to_predictions(activations)) 
+
+    ### Remove temporary directory if it was automatically created and the option was selected by the user
+    if remove_temp_dir and temp_dir:
+        try:
+            shutil.rmtree(temp_dir0)
+        except OSError as e:
+            print("Error: %s : %s" % (temp_dir0, e.strerror))
+
     return y_pred
 
 def predict_proba_oneevent_NDL(model, cue_seq, remove_duplicates = True, T = 1):
@@ -562,7 +606,8 @@ def predict_proba_oneevent_NDL(model, cue_seq, remove_duplicates = True, T = 1):
 
     return proba_pred
 
-def predict_proba_eventfile_NDL(model, data_test, temp_dir = None, T = 1, num_threads = 1):
+def predict_proba_eventfile_NDL(model, data_test, temp_dir = None, remove_temp_dir = True, 
+                                T = 1, num_threads = 1, chunksize = 10000):
 
     """ Generate predicted probabilities for NDL
 
@@ -574,12 +619,17 @@ def predict_proba_eventfile_NDL(model, data_test, temp_dir = None, T = 1, num_th
         dataframe or indexed text file containing test data
     temp_dir: str
         directory where to store the converted gz file if a dataframe is passed to data_test 
-        (needed to compute the activation matrix)
+        (needed to compute the activation matrix). Default: None (will create a folder 
+        'TEMP_TRAIN_DIRECTORY' in the current working directory    
+    remove_temp_dir: Boolean
+        whether or not to remove the temporary directory. Default: True
     T: float
         temperature hyperparameter to adjust the confidence in the predictions from the activations.
         Low values increase the confidence in the predictions. 
     num_threads: int
         maximum number of processes to use when computing the activations is the data is unseen. Default: 1
+    chunksize : int
+        number of lines to use for computing the activation matrix for these lines. Default: 10000
 
     Returns
     -------
@@ -590,26 +640,50 @@ def predict_proba_eventfile_NDL(model, data_test, temp_dir = None, T = 1, num_th
     from pyndl.activation import activation
     from deep_text_modelling.preprocessing import df_to_gz
 
+    # Create a temporary directory if not provided
+    if not temp_dir:
+        temp_dir0 = os.path.join(os.getcwd(), 'TEMP_TRAIN_DIRECTORY')
+        # Add warning if the creation of a temporary directory fails 
+        # (e.g. folder with the same name already existing)
+        try:
+            os.mkdir(temp_dir0) 
+        except OSError:
+            print("Creation of a temporary directory %s failed. This could be because ", 
+                  "a folder with the same name already exists or you don't have the ", 
+                  "required admin rights on the computer)." % temp_dir0)
+    else:
+        temp_dir0 = temp_dir
+
     ### Path to the train event file
     if isinstance(data_test, str):     
         events_test_path = data_test
     elif isinstance(data_test, pd.DataFrame):
-        if temp_dir:
-            events_test_path = os.path.join(temp_dir, 'data_test_temp.gz')
-            df_to_gz(data = data_test, gz_outfile = events_test_path)
-        else: 
-            raise ValueError("provide a path to a temporary directory for generating a temporary .gz event file")
+        # if temp_dir:
+        events_test_path = os.path.join(temp_dir, 'data_test_temp.gz')
+        df_to_gz(data = data_test, gz_outfile = events_test_path)
+        # else: 
+        #     raise ValueError("provide a path to a temporary directory for generating a temporary .gz event file")
     else:
         raise ValueError("data_test should be either a path to an event file or a dataframe")
 
     # Generate the activations 
-    activations_test = activation(events = events_test_path, 
-                                  weights = model.weights,
-                                  number_of_threads = num_threads,
-                                  remove_duplicates = True,
-                                  ignore_missing_cues = True)
+    events = io.events_from_file(events_test_path)
+    for events_chunk in chunk(events, chunksize):
+        activations_test = activation(events = events_chunk, 
+                                    weights = model.weights,
+                                    number_of_threads = num_threads,
+                                    remove_duplicates = True,
+                                    ignore_missing_cues = True)
 
     # Predicted probabilities using softmax
     proba_pred = activations_to_proba(activations = activations_test, T = T)
+
+    ### Remove temporary directory if it was automatically created and the option was selected by the user
+    if remove_temp_dir and temp_dir:
+        try:
+            shutil.rmtree(temp_dir0)
+        except OSError as e:
+            print("Error: %s : %s" % (temp_dir0, e.strerror))
+            
     return proba_pred
  
