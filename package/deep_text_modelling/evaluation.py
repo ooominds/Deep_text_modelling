@@ -476,8 +476,12 @@ def activations_to_predictions(activations):
     y_pred = []
     for j in range(activations.shape[1]):
         activation_col = activations[:, j]
-        argmax_j = activation_col.where(activation_col == activation_col.max(), drop=True).squeeze().coords['outcomes'].values.item()
-        y_pred.append(argmax_j)
+        try: # If there is a single max
+            argmax_j = activation_col.where(activation_col == activation_col.max(), drop=True).squeeze().coords['outcomes'].values.item()       
+        except: # If there are multiple maxes 
+            maxes = activation_col.where(activation_col == activation_col.max(), drop=True).values
+            argmax_j = np.random.choice(maxes, 1, replace=False).squeeze()
+        y_pred.append(argmax_j)   
     return y_pred
 
 def chunk(iterable, chunksize):
@@ -512,8 +516,8 @@ def predict_outcomes_NDL(model, data_test, temp_dir = None, remove_temp_dir = Tr
 
     Returns
     -------
-    numpy array
-        array containing the predicted probabilities 
+    list
+        list containing the predicted outcomes
     """
 
     from pyndl.activation import activation
