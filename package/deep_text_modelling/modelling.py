@@ -1415,7 +1415,7 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
     if isinstance(data_train, str):     
         events_train_path = data_train
     elif isinstance(data_train, pd.DataFrame):
-        events_train_path = os.path.join(temp_dir, 'unfiltered_events_train.gz')
+        events_train_path = os.path.join(temp_dir0, 'unfiltered_events_train.gz')
         df_to_gz(data = data_train, gz_outfile = events_train_path)
     else:
         raise ValueError("data_train should be either a path to an event file or a dataframe")
@@ -1424,14 +1424,14 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
     if isinstance(data_valid, str):     
         events_valid_path = data_valid
     elif isinstance(data_valid, pd.DataFrame):
-        events_valid_path = os.path.join(temp_dir, 'unfiltered_events_valid.gz')
+        events_valid_path = os.path.join(temp_dir0, 'unfiltered_events_valid.gz')
         df_to_gz(data = data_valid, gz_outfile = events_valid_path)
     else:
         raise ValueError("data_valid should be either a path to an event file or a dataframe")
         
     ### Paths to the filtered files
-    filtered_events_train_path = os.path.join(temp_dir, 'filtered_events_train.gz')  
-    filtered_events_valid_path = os.path.join(temp_dir, 'filtered_events_valid.gz')  
+    filtered_events_train_path = os.path.join(temp_dir0, 'filtered_events_train.gz')  
+    filtered_events_valid_path = os.path.join(temp_dir0, 'filtered_events_valid.gz')  
 
     ### Filter the event files by retaining only the cues and outcomes that are in the index system (e.g. most frequent tokens) 
     ### if these index systems are provided by the user. Otherwise, use all cues and/or outcomes
@@ -1583,11 +1583,11 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
         sys.stdout.write('Warning: learning diverged in epoch %d!!!\n' % ((epoch_no_diverg+1)))
 
     ### Fit history object
-    hist = {'acc': acc_hist,
+    hist = {'accuracy': acc_hist,
             'precision': precision_hist,
             'recall': recall_hist,
             'f1score': f1score_hist,
-            'val_acc': val_acc_hist,
+            'val_accuracy': val_acc_hist,
             'val_precision': val_precision_hist,
             'val_recall': val_recall_hist,
             'val_f1score': val_f1score_hist
@@ -1766,12 +1766,12 @@ def grid_search_NDL(data_train, data_valid, params, prop_grid,
                     
                     # Add the performance scores
                     # training
-                    acc_j = hist['acc'][j]
+                    acc_j = hist['accuracy'][j]
                     precision_j = hist['precision'][j]
                     recall_j = hist['recall'][j]            
                     f1score_j = hist['f1score'][j]
                     # validation
-                    val_acc_j = hist['val_acc'][j]
+                    val_acc_j = hist['val_accuracy'][j]
                     val_precision_j = hist['val_precision'][j]
                     val_recall_j = hist['val_recall'][j]            
                     val_f1score_j = hist['val_f1score'][j]
