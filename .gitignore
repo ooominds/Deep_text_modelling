@@ -2,6 +2,13 @@
 __pycache__/
 *.py[cod]
 
+# tests folder and files
+tests/
+tests.py
+
+# Large embedding text files
+illustrative_examples/tenses/Data/glove.6B.100d.txt
+
 # C extensions
 *.so
 
