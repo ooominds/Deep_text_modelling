@@ -80,12 +80,11 @@ All you need to start using the package is to copy the folder inside 'package' i
 - keras
 - pyndl
 - scikit-learn 
-- talos (optional)
 
 ## Authors
 
-Dr Adnane Ez-zizi (a.ez-zizi@bham.ac.uk) \
-Dr Petar Milin (p.milin@bham.ac.uk)
+Dr Adnane Ez-zizi (main developer; a.ez-zizi@bham.ac.uk) \
+Dr Petar Milin
 
 ## Funder acknowledgement 
 
