@@ -1,4 +1,5 @@
 # Deep text modelling (DTM)
+
 A Python package providing tools for processing and modelling text data
 
 ## Overview
@@ -81,11 +82,29 @@ All you need to start using the package is to copy the folder inside 'package' i
 - pyndl
 - scikit-learn 
 
-## Authors
+## Citing DTM
 
-Dr Adnane Ez-zizi (a.ez-zizi@bham.ac.uk): Wrote the code and the documentation \
-Dr Petar Milin (p.milin@bham.ac.uk)
+If you use DTM in published work, please use the following citation:
+
+Ez-zizi, A., and Milin, P. (2020). DTM: A Python package for processing and modelling text. v1.0. Zenodo, doi:10.5281/zenodo.xxxxx
+
+```
+@misc{ezzizi_milin_2020,
+    author       = {Adnane Ez-zizi and Petar Milin},
+    title        = {{DTM: A Python package for processing and modelling text data}},
+    month        = mar,
+    year         = 2020,
+    doi          = {10.5281/zenodo.xxxxx},
+    version      = {1.0},
+    publisher    = {Zenodo},
+    url          = {https://doi.org/10.5281/zenodo.xxxxx}
+    }
+  ```
 
 ## Acknowledgement 
 
-We would like to thank Christian Adam for providing a template code for indexing text files. This project was supported by a Leverhulme Trust Research Leadership Award (RL-2016-001) to Prof Dagmar Divjak.
+We would like to thank Christian Adam for providing a template code for indexing text files. The project was supported by a Leverhulme Trust Research Leadership Award (RL-2016-001) to Prof Dagmar Divjak.
+
+## Contact information
+
+The DTM package was initially developed and is currently maintained by Dr Adnane Ez-zizi (a.ez-zizi@bham.ac.uk)
