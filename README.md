@@ -107,4 +107,4 @@ We would like to thank Christian Adam for providing a template code for indexing
 
 ## Contact information
 
-The DTM package was initially developed and is currently maintained by Dr Adnane Ez-zizi (a.ez-zizi@bham.ac.uk)
+The DTM package is maintained by Dr Adnane Ez-zizi (a.ez-zizi@bham.ac.uk)
