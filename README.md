@@ -86,11 +86,11 @@ All you need to start using the package is to copy the folder inside 'package' i
 
 If you use DTM in published work, please use the following citation:
 
-Ez-zizi, A., and Milin, P. (2020). DTM: A Python package for processing and modelling text. v1.0. Zenodo, doi:10.5281/zenodo.3739173
+Ez-zizi, A., and Milin, P. (2020). DTM: A Python package for processing and modelling text. v0, Zenodo, doi:10.5281/zenodo.3739173
 
 ```
 @misc{ezzizi_milin_2020,
-    author       = {Adnane Ez-zizi and Petar Milin},
+    author       = {Ez-zizi, Adnane and Milin, Petar},
     title        = {{DTM: A Python package for processing and modelling text data}},
     month        = mar,
     year         = 2020,
