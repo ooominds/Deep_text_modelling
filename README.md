@@ -76,11 +76,11 @@ This example illustrates how to estimate for each sentence, the probabilities of
 
 All you need to start using the package is to copy the folder inside 'package' in your computer and make it as your working directory in Python. You will also need to install the following packages:
 
-- numpy
-- pandas
-- keras
-- pyndl
-- scikit-learn 
+- [numpy](https://pypi.org/project/numpy/)
+- [pandas](https://pypi.org/project/pandas/)
+- [keras](https://pypi.org/project/Keras/)
+- [pyndl](https://pypi.org/project/pyndl/)
+- [scikit-learn](https://pypi.org/project/scikit-learn/) 
 
 ## Citing DTM
 
