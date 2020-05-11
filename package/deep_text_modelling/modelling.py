@@ -2115,3 +2115,112 @@ def import_history(path):
         history_dict[k] = list(map(float, v))
 
     return history_dict
+
+################
+# Useful tools
+#################
+
+def estimate_gridsearch_size(model, params):
+
+    """ Compute the total number of parameter combinations in a grid search 
+
+    Parameters
+    ----------
+    model: str
+        name of the model to train. The function currently supports feedforward neural networks (model = 'FNN'),
+        long-short term memory (model = 'LSTM') and naive discriminative learning (model = 'NDL') also commonly known as 
+        Rescorla-Wagner model.
+    params: dict of lists
+        parameter set of the grid search:
+
+    Returns
+    -------
+    int
+        number of param combinations
+    """
+    
+    ### FNN model
+    if model == 'FNN':
+
+        # Extract the dimensions of the pretrained embeddings
+        pretrain_embed_dim = {}
+        embed_inputs = params['embedding_input']
+        for i, e in enumerate(embed_inputs):
+            if embed_inputs[i] and embed_inputs[i] != 'learn':
+                pretrain_embed_dim.update({embed_inputs[i]:extract_embedding_dim(embed_inputs[i])})
+
+        # Create a list of dictionaries giving all possible parameter combinations
+        keys, values = zip(*params.items())
+        grid_full = [dict(zip(keys, v)) for v in itertools.product(*values)]
+
+        ### Remove impossible combinations
+        ind_to_remove = []
+        for i,d in enumerate(grid_full):
+            # In the case of no hidden layer, no need to set the 'activation' parameter - only 'last_activation' is used
+            if grid_full[i]['hidden_layers'] == 0:
+                grid_full[i]['activation'] = None
+            # In the case of hot encoding or pretrained embedding, no need to set embedding_dim, otherwise,
+            # it is essential to set embedding_dim, so remove all cases where embedding_dim is not given with
+            # embeddings to be learned from scratch
+            if not grid_full[i]['embedding_input']:
+                grid_full[i]['embedding_dim'] = None
+            elif grid_full[i]['embedding_input'] == 'learn' and not grid_full[i]['embedding_dim']:
+                ind_to_remove.append(i) 
+            elif grid_full[i]['embedding_input'] and grid_full[i]['embedding_input'] != 'learn':
+                grid_full[i]['embedding_dim'] = pretrain_embed_dim[grid_full[i]['embedding_input']]
+            # In the case of embeddings, it is essential to set 'max_len' (max_len cannot be None),
+            # so remove all cases where embeddings are used max_len is not given
+            if grid_full[i]['embedding_input'] and not grid_full[i]['max_len']:
+                ind_to_remove.append(i) 
+                
+        # First remove the detected impossible combinations (e.g. 'embedding_input = 'learn', embedding_dim = None') 
+        for ii in sorted(ind_to_remove, reverse = True):
+            del grid_full[ii]
+        # Second remove the duplicated combinations 'embedding_input != 'learn', embedding_dim = None' 
+        grid_full = [dict(t) for t in {tuple(d.items()) for d in grid_full}]    
+
+    ### LSTM model
+    if model == 'LSTM':
+
+        # Extract the dimensions of the pretrained embeddings
+        pretrain_embed_dim = {}
+        embed_inputs = params['embedding_input']
+        for i, e in enumerate(embed_inputs):
+            if embed_inputs[i] and embed_inputs[i] != 'learn':
+                pretrain_embed_dim.update({embed_inputs[i]:extract_embedding_dim(embed_inputs[i])})
+
+        ### Create a list of dictionaries giving all possible parameter combinations
+        keys, values = zip(*params.items())
+        grid_full = [dict(zip(keys, v)) for v in itertools.product(*values)]
+
+        ### Remove impossible combinations
+        ind_to_remove = []
+        for i,d in enumerate(grid_full):
+            # In the case of hot encoding or pretrained embedding, no need to set embedding_dim, otherwise,
+            # it is essential to set embedding_dim, so remove all cases where embedding_dim is not given with
+            # embeddings to be learned from scratch
+            if not grid_full[i]['embedding_input']:
+                grid_full[i]['embedding_dim'] = None
+            elif grid_full[i]['embedding_input'] == 'learn' and not grid_full[i]['embedding_dim']:
+                ind_to_remove.append(i) 
+            elif grid_full[i]['embedding_input'] and grid_full[i]['embedding_input'] != 'learn':
+                grid_full[i]['embedding_dim'] = pretrain_embed_dim[grid_full[i]['embedding_input']]
+        
+        # First remove the combinations 'embedding_input = 'learn', embedding_dim = None' 
+        for ii in sorted(ind_to_remove, reverse = True):
+            del grid_full[ii]
+        # Second remove the duplicated combinations 'embedding_input != 'learn', embedding_dim = None' 
+        grid_full = [dict(t) for t in {tuple(d.items()) for d in grid_full}]  
+
+    ### NDL model
+    if model == 'NDL': 
+
+        ### Create a list of dictionaries giving all possible parameter combinations
+        keys, values = zip(*params.items())
+        grid_full = [dict(zip(keys, v)) for v in itertools.product(*values)]
+
+    # Raise an error if a non-supported model is entered 
+    else:
+        raise ValueError(f'The entered model "{model}" is not supported')
+
+    return len(grid_full)
