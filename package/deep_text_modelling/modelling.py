@@ -1522,10 +1522,10 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
 
             ### True outcomes 
             # tain set 
-            events_train_df = pd.read_csv(filtered_events_train_path, header = 0, sep='\t', quotechar='"')
+            events_train_df = pd.read_csv(filtered_events_train_path, header = 0, sep='\t', quotechar='"', usecols = ['outcomes'])
             y_train_true = events_train_df['outcomes'].tolist()    
             # validation set 
-            events_valid_df = pd.read_csv(filtered_events_valid_path, header = 0, sep='\t', quotechar='"')
+            events_valid_df = pd.read_csv(filtered_events_valid_path, header = 0, sep='\t', quotechar='"', usecols = ['outcomes'])
             y_valid_true = events_valid_df['outcomes'].tolist()
             
             # Compute performance scores for the different metrics
@@ -1604,7 +1604,7 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
             }
 
     ### Remove temporary directory if it was automatically created and the option was selected by the user
-    if remove_temp_dir and temp_dir:
+    if remove_temp_dir and not temp_dir:
         try:
             shutil.rmtree(temp_dir0)
         except OSError as e:
@@ -1681,14 +1681,6 @@ def grid_search_NDL(data_train, data_valid, params, prop_grid,
         save csv files
     """
 
-    ### Select the appropriate model generator based on the type of data
-    # Training data
-    if ((not isinstance(data_train, pd.DataFrame)) and (not isinstance(data_train, str))):
-        raise ValueError("data_train should be either a path to an event file or a dataframe")
-    # Validation data
-    if ((not isinstance(data_train, pd.DataFrame)) and (not isinstance(data_train, str))):
-        raise ValueError("data_valid should be either a path to an event file or a dataframe")
-
     # Create a temporary directory if not provided
     if not temp_dir:
         temp_dir0 = os.path.join(os.getcwd(), 'TEMP_TRAIN_DIRECTORY')
@@ -1702,6 +1694,54 @@ def grid_search_NDL(data_train, data_valid, params, prop_grid,
                   "required admin rights on the computer)." % temp_dir0)
     else:
         temp_dir0 = temp_dir
+
+    ### Path to the train event file
+    if isinstance(data_train, str):     
+        events_train_path = data_train
+    elif isinstance(data_train, pd.DataFrame):
+        events_train_path = os.path.join(temp_dir0, 'unfiltered_events_train.gz')
+        df_to_gz(data = data_train, gz_outfile = events_train_path)
+    else:
+        raise ValueError("data_train should be either a path to an event file or a dataframe")
+
+    ### Path to the validation event file
+    if isinstance(data_valid, str):     
+        events_valid_path = data_valid
+    elif isinstance(data_valid, pd.DataFrame):
+        events_valid_path = os.path.join(temp_dir0, 'unfiltered_events_valid.gz')
+        df_to_gz(data = data_valid, gz_outfile = events_valid_path)
+    else:
+        raise ValueError("data_valid should be either a path to an event file or a dataframe")
+        
+    ### Paths to the filtered files
+    filtered_events_train_path = os.path.join(temp_dir0, 'filtered_events_train_grid.gz')  
+    filtered_events_valid_path = os.path.join(temp_dir0, 'filtered_events_valid_grid.gz')  
+
+    ### Filter the event files by retaining only the cues and outcomes that are in the index system (e.g. most frequent tokens) 
+    ### if these index systems are provided by the user. Otherwise, use all cues and/or outcomes
+    # Cues
+    if cue_index:
+        cues_to_keep = [cue for cue in cue_index.keys()]
+    else:
+        cues_to_keep = 'all'
+    # Outcomes
+    if outcome_index:
+        outcomes_to_keep = [outcome for outcome in outcome_index.keys()]
+    else:
+        outcomes_to_keep = 'all'
+
+    # Train set 
+    filter_event_file(events_train_path,
+                      filtered_events_train_path,
+                      number_of_processes = num_threads,
+                      keep_cues = cues_to_keep,
+                      keep_outcomes = outcomes_to_keep)
+    # Validation set
+    filter_event_file(events_valid_path,
+                      filtered_events_valid_path,
+                      number_of_processes = num_threads,
+                      keep_cues = cues_to_keep,
+                      keep_outcomes = outcomes_to_keep) 
 
     ### Create a list of dictionaries giving all possible parameter combinations
     keys, values = zip(*params.items())
@@ -1748,10 +1788,10 @@ def grid_search_NDL(data_train, data_valid, params, prop_grid,
                     print(f'This parameter combination has already been processed: {param_comb}\n')
 
             else:
-                hist, model = train_NDL(data_train = data_train, 
-                                        data_valid = data_valid,  
-                                        cue_index = cue_index, 
-                                        outcome_index = outcome_index,
+                hist, model = train_NDL(data_train = events_train_path, 
+                                        data_valid = events_valid_path,  
+                                        # cue_index = cue_index, 
+                                        # outcome_index = outcome_index,
                                         shuffle_epoch = shuffle_epoch, 
                                         num_threads = num_threads,
                                         chunksize = chunksize, 
@@ -1792,7 +1832,7 @@ def grid_search_NDL(data_train, data_valid, params, prop_grid,
                     o.flush()
 
     ### Remove temporary directory if it was automatically created and the option was selected by the user
-    if remove_temp_dir and temp_dir:
+    if remove_temp_dir and not temp_dir:
         try:
             shutil.rmtree(temp_dir0)
         except OSError as e:
