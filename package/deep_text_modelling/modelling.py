@@ -658,7 +658,7 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
     param_comb_sofar = []
 
     ### Write to the csv file that encodes the results
-    with open(tuning_output_file, mode = 'w') as o:
+    with open(tuning_output_file, mode = 'w', newline = '\n') as o:
         csv_writer = csv.writer(o, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
         heading = list(params.keys())
         heading.extend(['loss', 'acc', 'precision', 'recall', 'f1score', 
@@ -1215,7 +1215,7 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index,
     param_comb_sofar = []
 
     ### Write to the csv file that encodes the results
-    with open(tuning_output_file, mode = 'w') as o:
+    with open(tuning_output_file, mode = 'w', newline = '\n') as o:
         csv_writer = csv.writer(o, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
         heading = list(params.keys())
         heading.extend(['loss', 'acc', 'precision', 'recall', 'f1score', 
@@ -1709,7 +1709,7 @@ def grid_search_NDL(data_train, data_valid, params, prop_grid,
     param_comb_sofar = []
 
     ### Write to the csv file that encodes the results
-    with open(tuning_output_file, mode = 'w') as o:
+    with open(tuning_output_file, mode = 'w', newline = '\n') as o:
         csv_writer = csv.writer(o, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
         heading = list(params.keys())
         heading.extend(['acc', 'precision', 'recall', 'f1score', 

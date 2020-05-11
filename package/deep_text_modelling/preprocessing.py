@@ -70,7 +70,7 @@ def gz_to_csv(gz_infile, csv_outfile):
         save a csv file
     """
 
-    with open(csv_outfile, mode = 'w') as outfile:
+    with open(csv_outfile, mode = 'w', newline = '\n') as outfile:
         with gzip.open(gz_infile, 'rt') as infile:
             csv_writer = csv.writer(outfile, delimiter = ',', quotechar = '"', quoting = csv.QUOTE_MINIMAL)
             for line in infile:
