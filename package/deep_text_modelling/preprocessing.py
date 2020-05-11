@@ -11,7 +11,7 @@ from keras.preprocessing.text import Tokenizer
 # Conversion between csv and gz formats
 #######################################
 
-def df_to_gz(data, gz_outfile):
+def df_to_gz(data, gz_outfile, sep_gz = '\t', encoding = 'utf-8'):
 
     """Export a dataframe containing events to a .gz file
 
@@ -20,7 +20,11 @@ def df_to_gz(data, gz_outfile):
     data: dataframe
         dataframe to export to a gz file
     gz_outfile: str
-        path of the gz file  
+        path of the gz file 
+    sep_gz: str
+        field delimiter for the gz file. Default: '\t'
+    encoding: str
+        file encoding to use. Default: 'utf-8'
 
     Returns
     -------
@@ -28,10 +32,10 @@ def df_to_gz(data, gz_outfile):
         save a .gz file
     """
 
-    with gzip.open(gz_outfile, 'wt', encoding='utf-8') as out:
-        data.to_csv(out, sep = '\t', index = False)
+    with gzip.open(gz_outfile, 'wt', encoding = encoding) as out:
+        data.to_csv(out, sep = sep_gz, index = False, encoding = encoding)
 
-def csv_to_gz(csv_infile, gz_outfile):
+def csv_to_gz(csv_infile, gz_outfile, sep_gz = '\t', encoding = 'utf-8'):
 
     """Convert a csv containing events to a .gz file
 
@@ -40,7 +44,11 @@ def csv_to_gz(csv_infile, gz_outfile):
     csv_infile: str
         path of the csv file to convert
     gz_outfile: str
-        path of the gz file  
+        path of the gz file 
+    sep_gz: str
+        field delimiter for the gz file. Default: '\t' 
+    encoding: str
+        file encoding to use. Default: 'utf-8'
 
     Returns
     -------
@@ -48,12 +56,12 @@ def csv_to_gz(csv_infile, gz_outfile):
         save a .gz file
     """
 
-    with gzip.open(gz_outfile, 'wt') as out:
-        for line in csv.reader(open(csv_infile, 'r')):
-            line = '\t'.join(line)+'\n'
+    with gzip.open(gz_outfile, 'wt', encoding = encoding) as out:
+        for line in csv.reader(open(csv_infile, 'r', encoding = encoding)):
+            line = sep_gz.join(line)+'\n'
             out.write(line)
 
-def gz_to_csv(gz_infile, csv_outfile):
+def gz_to_csv(gz_infile, csv_outfile, sep_gz = '\t', encoding = 'utf-8'):
 
     """Convert a gz file containing events to csv format
 
@@ -63,6 +71,10 @@ def gz_to_csv(gz_infile, csv_outfile):
         path of the gz file to convert
     csv_outfile: str
         path of the csv file  
+    sep_gz: str
+        field delimiter for the gz file. Default: '\t' 
+    encoding: str
+        file encoding to use. Default: 'utf-8'
 
     Returns
     -------
@@ -70,11 +82,11 @@ def gz_to_csv(gz_infile, csv_outfile):
         save a csv file
     """
 
-    with open(csv_outfile, mode = 'w', newline = '\n') as outfile:
-        with gzip.open(gz_infile, 'rt') as infile:
+    with open(csv_outfile, mode = 'w', newline = '\n', encoding = encoding) as outfile:
+        with gzip.open(gz_infile, 'rt', encoding = encoding) as infile:
             csv_writer = csv.writer(outfile, delimiter = ',', quotechar = '"', quoting = csv.QUOTE_MINIMAL)
             for line in infile:
-                csv_writer.writerow(line.strip().split('\t'))
+                csv_writer.writerow(line.strip().split(sep_gz))
 
 ######################################
 # Use text file as an indexable object
@@ -181,13 +193,13 @@ def create_index_systems_from_counters(cue_counter, outcome_counter, cue_index_p
     outcome_index = {outcome:(i+1) for i, (outcome, freq) in enumerate(outcome_counter.most_common())} 
 
     ### Export the cue and outcome index systems
-    # For the contexts
-    with open(cue_index_path, 'w') as fc:
+    # For the cues
+    with open(cue_index_path, 'w', encoding = 'utf-8') as fc:
         for key in cue_index.keys():
             fc.write("%s,%s\n"%(key, cue_index[key]))
 
-    # For the tenses
-    with open(outcome_index_path, 'w') as fo:
+    # For the toutcomes
+    with open(outcome_index_path, 'w', encoding = 'utf-8') as fo:
         for key in outcome_index.keys():
             fo.write("%s,%s\n"%(key, outcome_index[key]))
 
@@ -234,12 +246,12 @@ def create_index_systems_from_df(data, cue_index_path, outcome_index_path):
 
     ### Export the cue and outcome index systems
     # For the contexts
-    with open(cue_index_path, 'w') as fc:
+    with open(cue_index_path, 'w', encoding = 'utf-8') as fc:
         for key in cue_index.keys():
             fc.write("%s,%s\n"%(key, cue_index[key]))
 
     # For the tenses
-    with open(outcome_index_path, 'w') as fo:
+    with open(outcome_index_path, 'w', encoding = 'utf-8') as fo:
         for key in outcome_index.keys():
             fo.write("%s,%s\n"%(key, outcome_index[key]))
             
@@ -262,7 +274,7 @@ def import_index_system(index_system_path, N_tokens = None):
     """
 
     # Load the index system 
-    with open(index_system_path, 'r') as file:
+    with open(index_system_path, 'r', encoding = 'utf-8') as file:
         index_system_df = csv.reader(file)
         index_system_dict = {}
         # Import all indices if N_tokens is not given
@@ -566,7 +578,7 @@ def orthoCoding(sent, gram_size, remove_duplicates = False, randomize_order = Fa
 # Create epochs 
 ################
 
-def shuffle_textfile(infile_path, outfile_path):
+def shuffle_textfile(infile_path, outfile_path, seed = None):
 
     """shuffle an event dataset that is stored as a gz file    
 
@@ -576,6 +588,8 @@ def shuffle_textfile(infile_path, outfile_path):
         path to the event file to shuffle
     outfile_path: str
         path to the shuffled file
+    seed : int or None
+        random seed to initialise the pseudorandom number generator. Default: None
 
     Returns
     -------
@@ -586,10 +600,13 @@ def shuffle_textfile(infile_path, outfile_path):
     with gzip.open(infile_path, 'rt', encoding = 'utf-8') as fr: 
         with gzip.open(outfile_path , 'wt', encoding = 'utf-8') as fw:
             lines = fr.readlines()
-            lines = [lines[0]] + random.shuffle(lines[1:]) # lines[0] is the heading     
+            header = [lines[0]] # lines[0] is the heading   
+            body = lines[1:]
+            random.Random(seed).shuffle(body)
+            lines = header + body   
             fw.writelines(lines)
 
-def create_epochs_textfile(infile_path, outfile_path, epoch, shuffle_epoch = False):
+def create_epochs_textfile(infile_path, outfile_path, epoch, shuffle_epoch = False, seed = None):
 
     """Generate epochs from a dataset of events that is stored as a gz file    
 
@@ -603,6 +620,8 @@ def create_epochs_textfile(infile_path, outfile_path, epoch, shuffle_epoch = Fal
         number of epochs to generate
     shuffle_epoch: Boolean
         whether to shuffle the data after every epoch
+    seed : int or None
+        random seed to initialise the pseudorandom number generator. Default: None
 
     Returns
     -------
@@ -613,10 +632,12 @@ def create_epochs_textfile(infile_path, outfile_path, epoch, shuffle_epoch = Fal
     with gzip.open(infile_path, 'rt', encoding = 'utf-8') as fr: 
         with gzip.open(outfile_path , 'wt', encoding = 'utf-8') as fw:
             lines = fr.readlines()
-            lines_epoch = lines
+            body = lines[1:]
+            lines_epoch = lines.copy()
             if shuffle_epoch:
-                for j in range(1, epoch):
-                    lines_epoch = lines_epoch + random.shuffle(lines[1:])
+                for j in range(1, epoch):           
+                    random.Random(seed).shuffle(body)
+                    lines_epoch = lines_epoch + body 
             else:
                 lines_epoch = [lines[0]] + (lines[1:] * epoch) # lines[0] is the heading          
             fw.writelines(lines_epoch)
