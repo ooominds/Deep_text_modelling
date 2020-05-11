@@ -324,7 +324,7 @@ class generator_df_FNN(keras.utils.Sequence):
 def train_FNN(data_train, data_valid, cue_index, outcome_index, 
               shuffle_epoch = False, num_threads = 1, verbose = 0,
               metrics = ['accuracy', 'precision', 'recall', 'f1score'],
-              params = {'max_len': 10,
+              params = {'max_len': None,
                         'embedding_input': None,
                         'embedding_dim': None,
                         'epochs': 1, # number of iterations on the full set 
@@ -359,14 +359,16 @@ def train_FNN(data_train, data_valid, cue_index, outcome_index,
     metrics: list
     params: dict
         model parameters:
-        'max_len': int
-            Consider only 'max_len' first tokens in a cue sequence. Default: 10   
+        'max_len': int or None
+            Consider only 'max_len' first tokens in a cue sequence. If None then all cues are taken into account, 
+            but None can only be chosen if trained with one-hot encoding. Default: None   
         'embedding_input': str, numpy matrix or None
-            There are 3 possible choices: (1) if embedding_input = 'learn', learn embedding vectors from scratch while 
+            There are 4 possible choices: (1) if embedding_input = 'learn', learn embedding vectors from scratch while 
             training the model. An embedding layer will be added to the network; (2) if embedding_input = 'path', 
             extract embedding vectors from an embedding text file given in 'path' (it is imporant that it is a 
-            text file); (3) Use the already prepared embedding matrix for training. You can use 
-            prepare_embedding_matrix() from the preprocessing module. Default: None
+            text file); (3) Use an already prepared embedding matrix for training - use 
+            prepare_embedding_matrix() from the preprocessing module to prepare one. (4) embedding_input = None, 
+            one-hot encoding is used. Default: None
         'embedding_dim': int or None
             Length of the cue embedding vectors. Default: None
         'epochs': int
@@ -442,6 +444,9 @@ def train_FNN(data_train, data_valid, cue_index, outcome_index,
     if not params['embedding_input']:
         vector_encoding_0 = 'onehot'
     else:
+        if not max_len:
+            raise ValueError("'max_len' cannot be None: 'max_len' has to be specified when training a model with embeddings")
+
         vector_encoding_0 = 'embedding'
         if params['embedding_input'] == 'learn':
             model.add(Embedding(num_cues+1, params['embedding_dim'], input_length = max_len))
@@ -625,7 +630,7 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
     keys, values = zip(*params.items())
     grid_full = [dict(zip(keys, v)) for v in itertools.product(*values)]
 
-    # Remove impossible combinations
+    ### Remove impossible combinations
     ind_to_remove = []
     for i,d in enumerate(grid_full):
         # In the case of no hidden layer, no need to set the 'activation' parameter - only 'last_activation' is used
@@ -640,11 +645,16 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
             ind_to_remove.append(i) 
         elif grid_full[i]['embedding_input'] and grid_full[i]['embedding_input'] != 'learn':
             grid_full[i]['embedding_dim'] = pretrain_embed_dim[grid_full[i]['embedding_input']]
-    # First remove the combinations 'embedding_input = 'learn', embedding_dim = None' 
+        # In the case of embeddings, it is essential to set 'max_len' (max_len cannot be None),
+        # so remove all cases where embeddings are used max_len is not given
+        if grid_full[i]['embedding_input'] and not grid_full[i]['max_len']:
+            ind_to_remove.append(i) 
+            
+    # First remove the detected impossible combinations (e.g. 'embedding_input = 'learn', embedding_dim = None') 
     for ii in sorted(ind_to_remove, reverse = True):
         del grid_full[ii]
     # Second remove the duplicated combinations 'embedding_input != 'learn', embedding_dim = None' 
-    grid_full = [dict(t) for t in {tuple(d.items()) for d in grid_full}]    
+    grid_full = [dict(t) for t in {tuple(d.items()) for d in grid_full}]   
     
     # shuffle the list of params
     if shuffle_grid:
