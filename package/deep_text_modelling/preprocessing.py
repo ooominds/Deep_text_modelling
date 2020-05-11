@@ -321,8 +321,9 @@ def reverse_dictionary(dict_var):
 
 def text_train_valid_test_split(original_file_path, train_file_path, valid_file_path, 
                                 test_file_path, train_idxs_path = None, valid_idxs_path = None, 
-                                test_idxs_path = None, p_valid = 0.1, p_test = 0.1, file_type = 'gz', 
-                                input_header = True, output_header = False):
+                                test_idxs_path = None, p_valid = 0.1, p_test = 0.1, 
+                                file_type = 'gz', input_header = True, output_header = False, 
+                                encoding = 'utf-8', seed = None):
 
     """ Split a text file into training, valid and test set.
 
@@ -352,6 +353,12 @@ def text_train_valid_test_split(original_file_path, train_file_path, valid_file_
         whether the input file has a header
     output_header: bool
         whether the output file should have a header (copied from the header of the input file)
+    encoding: str
+        file encoding to use. Default: 'utf-8'
+    seed : int or None
+        random seed to initialise numpy's pseudorandom number generator. Default: None
+
+
 
     Returns
     -------
@@ -361,21 +368,23 @@ def text_train_valid_test_split(original_file_path, train_file_path, valid_file_
     # Calculate number of lines in each set
     orig_ind_file = IndexedFile(original_file_path, file_type)
     N_total = len(orig_ind_file) - int(input_header) # the second term is 1 if there is a heading and 0 otherwise
-    N_valid = round(N_total * p_valid) # 100
-    N_test = round(N_total * p_test) # 100
-    N_train = N_total - N_valid - N_test # 800
+    N_valid = round(N_total * p_valid) 
+    N_test = round(N_total * p_test) 
+    N_train = N_total - N_valid - N_test 
+
+    # Set the seed
+    np.random.seed(seed)
 
     ### Generate Training/Valid/Test indices
     # All indices 
     ind_all = np.array(range(1, N_total+int(input_header))) 
     # Train indices
-    np.random.seed(1)
     ind_train = np.random.choice(ind_all, size = N_train, replace = False) 
     # Remaing indices (either test or valid + test)
     ind_hold = np.setdiff1d(ind_all, ind_train)
-    np.random.seed(1)
     ind_valid = np.random.choice(ind_hold, size = N_valid, replace = False)
     ind_test = np.setdiff1d(ind_hold, ind_valid)
+    np.random.shuffle(ind_test)
 
     ### Export the train, valid and test indices
     if train_idxs_path and test_idxs_path and valid_idxs_path:
@@ -385,10 +394,10 @@ def text_train_valid_test_split(original_file_path, train_file_path, valid_file_
 
     ### Prepare the train, valid and test files
     if file_type == 'gz':
-        with gzip.open(original_file_path, mode = 'rb') as f_all:
-            with gzip.open(train_file_path, mode = 'wb') as f_train:
-                with gzip.open(valid_file_path, mode = 'wb') as f_valid:
-                    with gzip.open(test_file_path, mode = 'wb') as f_test:
+        with gzip.open(original_file_path, mode = 'rb', encoding = encoding) as f_all:
+            with gzip.open(train_file_path, mode = 'wb', encoding = encoding) as f_train:
+                with gzip.open(valid_file_path, mode = 'wb', encoding = encoding) as f_valid:
+                    with gzip.open(test_file_path, mode = 'wb', encoding = encoding) as f_test:
                         for i, line in enumerate(f_all):
                             if i in ind_train:
                                 f_train.write(line)
@@ -407,10 +416,10 @@ def text_train_valid_test_split(original_file_path, train_file_path, valid_file_
                                 print(f"Warning! The {i}th was not written: {line}")
                         
     else: # txt or csv
-        with open(original_file_path, mode = 'r') as f_all:
-            with open(train_file_path, mode = 'w') as f_train:
-                with open(valid_file_path, mode = 'w') as f_valid:
-                    with open(test_file_path, mode = 'w') as f_test:                       
+        with open(original_file_path, mode = 'r', encoding = encoding) as f_all:
+            with open(train_file_path, mode = 'w', encoding = encoding) as f_train:
+                with open(valid_file_path, mode = 'w', encoding = encoding) as f_valid:
+                    with open(test_file_path, mode = 'w', encoding = encoding) as f_test:                       
                         for i, line in enumerate(f_all):
                             if i in ind_train:
                                 f_train.write(line)
@@ -436,7 +445,7 @@ def text_train_valid_test_split(original_file_path, train_file_path, valid_file_
 
 def df_train_valid_test_split(data, train_data_path, valid_data_path, 
                               test_data_path, train_idxs_path = None, valid_idxs_path = None, 
-                              test_idxs_path = None, p_valid = 0.1, p_test = 0.1):
+                              test_idxs_path = None, p_valid = 0.1, p_test = 0.1, seed = None):
 
     """ Split data stored in a dataframe into training, valid and test set.
 
@@ -460,6 +469,8 @@ def df_train_valid_test_split(data, train_data_path, valid_data_path,
         proportion of the data to use for the validation set 
     p_test: float
         proportion of the data to use for the test set 
+    seed : int or None
+        random seed to initialise numpy's pseudorandom number generator. Default: None
 
     Returns
     -------
@@ -468,21 +479,23 @@ def df_train_valid_test_split(data, train_data_path, valid_data_path,
 
     # Calculate number of lines in each set
     N_total = len(data)
-    N_valid = round(N_total * p_valid) # 100
-    N_test = round(N_total * p_test) # 100
-    N_train = N_total - N_valid - N_test # 800
+    N_valid = round(N_total * p_valid) 
+    N_test = round(N_total * p_test) 
+    N_train = N_total - N_valid - N_test 
+
+    # Set the seed
+    np.random.seed(seed)
 
     ### Generate Training/Valid/Test indices
     # All indices 
     ind_all = np.array(range(1, N_total)) 
     # Train indices
-    np.random.seed(1)
     ind_train = np.random.choice(ind_all, size = N_train, replace = False) 
     # Remaing indices (either test or valid + test)
     ind_hold = np.setdiff1d(ind_all, ind_train)
-    np.random.seed(1)
     ind_valid = np.random.choice(ind_hold, size = N_valid, replace = False)
     ind_test = np.setdiff1d(ind_hold, ind_valid)
+    np.random.shuffle(ind_test)
 
     ### Export the train, valid and test indices
     if train_idxs_path and test_idxs_path and valid_idxs_path:
