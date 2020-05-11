@@ -401,12 +401,12 @@ def train_FNN(data_train, data_valid, cue_index, outcome_index,
     ### check verbose and convert to keras verbose
     if verbose == 0:
         verbose_k = 0
-    elif verbose in (1, 2) :
+    elif verbose in (1, 2):
         verbose_k = 2
     else:
         raise ValueError("incorrect verbose value: choose an integer bewteen 0 and 2")
 
-    if verbose ==2:
+    if verbose == 2:
         _ = sys.stdout.write('\n************************* Model compilation stage *************************\n\n')  
         sys.stdout.flush()
 
@@ -511,7 +511,7 @@ def train_FNN(data_train, data_valid, cue_index, outcome_index,
                   optimizer = params['optimizer'](lr = params['lr']),
                   metrics = metrics)
 
-    if verbose ==2:
+    if verbose == 2:
         _ = sys.stdout.write('Model compilation completed in %.1fs\n\n' \
                              % (time.time() - start_compile))
 
@@ -733,9 +733,9 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
             # Check if the current parameter combination has already been processed in the grid search
             if row_values in param_comb_sofar:
                 if verbose != 0:
-                    _ = sys.stdout.write(' - This parameter combination was skipped because it was already processed\n')
+                    _ = sys.stdout.write(' - This parameter combination was skipped because it has already been processed\n')
                     sys.stdout.flush()
-                    #print(f' - This parameter combination was skipped because it was already processed: {param_comb}\n')
+                    #print(f' - This parameter combination was skipped because it has already been processed: {param_comb}\n')
 
             else:
                 # Fit the model given the current param combination
@@ -1344,9 +1344,9 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index,
             # Check if the current parameter combination has already been processed in the grid search
             if row_values in param_comb_sofar:
                 if verbose != 0:
-                    _ = sys.stdout.write(' - This parameter combination was skipped because it was already processed\n')
+                    _ = sys.stdout.write(' - This parameter combination was skipped because it has already been processed\n')
                     sys.stdout.flush()
-                    #print(f' - This parameter combination was skipped because it was already processed: {param_comb}\n')
+                    #print(f' - This parameter combination was skipped because it has already been processed: {param_comb}\n')
 
             else:
                 # Fit the model given the current param combination
@@ -1480,8 +1480,8 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
     chunksize : int
         number of lines to use for computing the accuracy. This is done through 
         the computation of the activation matrix for these lines. Default: 10000 
-    verbose: int (0, 1)
-        verbosity mode. 0 = silent, 1 = one line per epoch.
+    verbose: int (0, 1, or 2)
+        verbosity mode. 0 = silent, 1 = one line per epoch, 2 = detailed. Default: 1
     temp_dir: str
         directory where to store temporary files while training NDL. Default: None (will create a folder 
         'TEMP_TRAIN_DIRECTORY' in the current working directory    
@@ -1514,6 +1514,14 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
     from deep_text_modelling.evaluation import activations_to_predictions, predict_outcomes_NDL
     from deep_text_modelling.preprocessing import df_to_gz
 
+    ### check verbose and convert to NDL verbose
+    if verbose in (0,1):
+        verbose_n = False
+    elif verbose == 2:
+        verbose_n = True
+    else:
+        raise ValueError("incorrect verbose value: choose an integer bewteen 0 and 2")
+
     # Create a temporary directory if not provided
     if not temp_dir:
         temp_dir0 = os.path.join(os.getcwd(), 'TEMP_TRAIN_DIRECTORY')
@@ -1532,8 +1540,16 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
     if isinstance(data_train, str):     
         events_train_path = data_train
     elif isinstance(data_train, pd.DataFrame):
+        if verbose ==2:
+            _ = sys.stdout.write('\n******************** Conversion of the training event-file into .gz ********************\n\n')  
+            sys.stdout.flush()
+        start_conv_train = time.time()
         events_train_path = os.path.join(temp_dir0, 'unfiltered_events_train.gz')
         df_to_gz(data = data_train, gz_outfile = events_train_path)
+        if verbose ==2:
+            _ = sys.stdout.write('Conversion completed in %.0fs\n\n' \
+                                % (time.time() - start_conv_train))
+            sys.stdout.flush()  
     else:
         raise ValueError("data_train should be either a path to an event file or a dataframe")
 
@@ -1541,8 +1557,16 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
     if isinstance(data_valid, str):     
         events_valid_path = data_valid
     elif isinstance(data_valid, pd.DataFrame):
+        if verbose ==2:
+            _ = sys.stdout.write('******************* Conversion of the validation event-file into .gz *******************\n\n')  
+            sys.stdout.flush()
+        start_conv_valid = time.time()
         events_valid_path = os.path.join(temp_dir0, 'unfiltered_events_valid.gz')
         df_to_gz(data = data_valid, gz_outfile = events_valid_path)
+        if verbose ==2:
+            _ = sys.stdout.write('Conversion completed in %.0fs\n\n' \
+                                % (time.time() - start_conv_valid))
+            sys.stdout.flush()  
     else:
         raise ValueError("data_valid should be either a path to an event file or a dataframe")
         
@@ -1564,17 +1588,43 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
         outcomes_to_keep = 'all'
 
     # Train set 
+    if verbose == 2:
+        _ = sys.stdout.write('********************* Creation of the filtered training event file *********************\n\n')  
+        _ = sys.stdout.write('Progress (each dot represents 100k events): ')
+        sys.stdout.flush()
+        start_filt_train = time.time()
     filter_event_file(events_train_path,
                       filtered_events_train_path,
                       number_of_processes = num_threads,
                       keep_cues = cues_to_keep,
-                      keep_outcomes = outcomes_to_keep)
-    # Validation set
+                      keep_outcomes = outcomes_to_keep,
+                      verbose = verbose_n)  
+    if verbose == 2:
+        _ = sys.stdout.write('\n\nFiltering completed in %.0fs\n\n' \
+                            % (time.time() - start_filt_train))
+        sys.stdout.flush()
+
+    # Validation set 
+    if verbose == 2:
+        _ = sys.stdout.write('******************** Creation of the filtered validation event file ********************\n\n') 
+        _ = sys.stdout.write('Progress (each dot represents 100k events): ') 
+        sys.stdout.flush()
+        start_filt_valid = time.time() 
     filter_event_file(events_valid_path,
                       filtered_events_valid_path,
                       number_of_processes = num_threads,
                       keep_cues = cues_to_keep,
-                      keep_outcomes = outcomes_to_keep) 
+                      keep_outcomes = outcomes_to_keep,
+                      verbose = verbose_n) 
+    if verbose == 2:
+        _ = sys.stdout.write('\n\nFiltering completed in %.0fs\n\n' \
+                            % (time.time() - start_filt_valid))
+        sys.stdout.flush()
+
+    if verbose == 2:
+        _ = sys.stdout.write('********************************* Learning the weights *********************************\n\n')  
+        sys.stdout.flush()
+        start_learn = time.time() 
 
     # Initialise the weight matrix
     weights = None
@@ -1687,7 +1737,7 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
             val_f1score_hist.append(val_f1score_j)  
 
         # Display progress message  
-        if verbose == 1:
+        if verbose != 0:
             now = time.time()
             sys.stdout.write('Epoch %d/%d\n' % (j, params['epochs']))
             sys.stdout.write(' - %.0fs - acc: %.4f - val_acc: %.4f\n' % ((now - start), acc_j, val_acc_j))
@@ -1697,7 +1747,7 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
     model = NDLmodel(weights)
 
     if (j>1 and np.isnan(weights).any()): # display a message to notify about a divergence problem:
-        sys.stdout.write('Warning: learning diverged in epoch %d!!!\n' % ((epoch_no_diverg+1)))
+        sys.stdout.write('Warning: learning diverged in epoch %d!!!\n\n' % ((epoch_no_diverg+1)))
         sys.stdout.flush()
 
     ### Fit history object
@@ -1710,6 +1760,12 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
             'val_recall': val_recall_hist,
             'val_f1score': val_f1score_hist
             }
+
+    if verbose == 2:
+        _ = sys.stdout.write('Learning completed in %.0fs\n' \
+                            % (time.time() - start_learn))
+        _ = sys.stdout.write('\n****************************************************************************************\n')
+        sys.stdout.flush()
 
     ### Remove temporary directory if it was automatically created and the option was selected by the user
     if remove_temp_dir and not temp_dir:
@@ -1783,14 +1839,24 @@ def grid_search_NDL(data_train, data_valid, params, prop_grid,
     seed : int or None
         random seed to initialise the pseudorandom number generator (for selecting the parameter 
         combinations to cover). Use it if you want to have replicable results. Default: None
-    verbose: int (0 or 1)
-        verbosity mode. 0 = silent, 1 = one line per parameter combination. Default:1
+    verbose: int (0, 1, or 2)
+        verbosity mode. 0 = silent, 1 = one line per parameter combination, 2 = detailed. Default: 1
 
     Returns
     -------
     None
         save csv files
     """
+
+    ### check verbose and convert to train()'s verbose
+    if verbose in (0, 1):
+        verbose_t = 0
+        verbose_n = False
+    elif verbose == 2:
+        verbose_t = 1
+        verbose_n = True
+    else:
+        raise ValueError("incorrect verbose value: choose an integer bewteen 0 and 2")
 
     # Create a temporary directory if not provided
     if not temp_dir:
@@ -1810,8 +1876,16 @@ def grid_search_NDL(data_train, data_valid, params, prop_grid,
     if isinstance(data_train, str):     
         events_train_path = data_train
     elif isinstance(data_train, pd.DataFrame):
+        if verbose ==2:
+            _ = sys.stdout.write('\n******************** Conversion of the training event-file into .gz ********************\n\n')  
+            sys.stdout.flush()
+        start_conv_train = time.time()
         events_train_path = os.path.join(temp_dir0, 'unfiltered_events_train.gz')
         df_to_gz(data = data_train, gz_outfile = events_train_path)
+        if verbose ==2:
+            _ = sys.stdout.write('Conversion completed in %.0fs\n\n' \
+                                % (time.time() - start_conv_train))
+            sys.stdout.flush()  
     else:
         raise ValueError("data_train should be either a path to an event file or a dataframe")
 
@@ -1819,8 +1893,16 @@ def grid_search_NDL(data_train, data_valid, params, prop_grid,
     if isinstance(data_valid, str):     
         events_valid_path = data_valid
     elif isinstance(data_valid, pd.DataFrame):
+        if verbose ==2:
+            _ = sys.stdout.write('******************* Conversion of the validation event-file into .gz *******************\n\n')  
+            sys.stdout.flush()
+        start_conv_valid = time.time()
         events_valid_path = os.path.join(temp_dir0, 'unfiltered_events_valid.gz')
         df_to_gz(data = data_valid, gz_outfile = events_valid_path)
+        if verbose ==2:
+            _ = sys.stdout.write('Conversion completed in %.0fs\n\n' \
+                                % (time.time() - start_conv_valid))
+            sys.stdout.flush()  
     else:
         raise ValueError("data_valid should be either a path to an event file or a dataframe")
         
@@ -1842,17 +1924,38 @@ def grid_search_NDL(data_train, data_valid, params, prop_grid,
         outcomes_to_keep = 'all'
 
     # Train set 
+    if verbose == 2:
+        _ = sys.stdout.write('********************* Creation of the filtered training event file *********************\n\n')  
+        _ = sys.stdout.write('Progress (each dot represents 100k events): ')
+        sys.stdout.flush()
+        start_filt_train = time.time()
     filter_event_file(events_train_path,
                       filtered_events_train_path,
                       number_of_processes = num_threads,
                       keep_cues = cues_to_keep,
-                      keep_outcomes = outcomes_to_keep)
-    # Validation set
+                      keep_outcomes = outcomes_to_keep,
+                      verbose = verbose_n)  
+    if verbose == 2:
+        _ = sys.stdout.write('\n\nFiltering completed in %.0fs\n\n' \
+                            % (time.time() - start_filt_train))
+        sys.stdout.flush()
+
+    # Validation set 
+    if verbose == 2:
+        _ = sys.stdout.write('******************** Creation of the filtered validation event file ********************\n\n') 
+        _ = sys.stdout.write('Progress (each dot represents 100k events): ') 
+        sys.stdout.flush()
+        start_filt_valid = time.time() 
     filter_event_file(events_valid_path,
                       filtered_events_valid_path,
                       number_of_processes = num_threads,
                       keep_cues = cues_to_keep,
-                      keep_outcomes = outcomes_to_keep) 
+                      keep_outcomes = outcomes_to_keep,
+                      verbose = verbose_n) 
+    if verbose == 2:
+        _ = sys.stdout.write('\n\nFiltering completed in %.0fs\n\n' \
+                            % (time.time() - start_filt_valid))
+        sys.stdout.flush()
 
     ### Create a list of dictionaries giving all possible parameter combinations
     keys, values = zip(*params.items())
@@ -1880,9 +1983,14 @@ def grid_search_NDL(data_train, data_valid, params, prop_grid,
         ### Run the experiments
         for i, param_comb in enumerate(grid_select):
 
+            start = time.time()
+
             # Message at the start of each iteration
-            if verbose == 1:
-                print(f'Iteration {i+1} out of {len(grid_select)}: {param_comb}\n')
+            if verbose != 0:
+                #print(f'Iteration {i+1} out of {len(grid_select)}: {param_comb}\n')
+                _ = sys.stdout.write('\n******************************** Iteration %d out of %d ********************************\n\n' % ((i+1), len(grid_select)))
+                _ = sys.stdout.write('%s\n\n' % (param_comb))
+                sys.stdout.flush()
 
             # this will contain the values that will be recorded in each row. 
             # We start by copying the parameter values
@@ -1895,18 +2003,18 @@ def grid_search_NDL(data_train, data_valid, params, prop_grid,
 
             # Check if the current parameter combination has already been processed in the grid search
             if row_values in param_comb_sofar:
-                if verbose == 1:
-                    print(f'This parameter combination has already been processed: {param_comb}\n')
+                if verbose != 0:
+                    _ = sys.stdout.write(' - This parameter combination was skipped because it has already been processed\n')
+                    sys.stdout.flush()
+                    #print(f' - This parameter combination was skipped because it has already been processed: {param_comb}\n')
 
             else:
-                hist, model = train_NDL(data_train = events_train_path, 
-                                        data_valid = events_valid_path,  
-                                        # cue_index = cue_index, 
-                                        # outcome_index = outcome_index,
+                hist, model = train_NDL(data_train = filtered_events_train_path, 
+                                        data_valid = filtered_events_valid_path,  
                                         shuffle_epoch = shuffle_epoch, 
                                         num_threads = num_threads,
                                         chunksize = chunksize, 
-                                        verbose = 0,
+                                        verbose = verbose_t,
                                         temp_dir = temp_dir0,
                                         remove_temp_dir = False,
                                         metrics = metrics, 
@@ -1941,6 +2049,13 @@ def grid_search_NDL(data_train, data_valid, params, prop_grid,
                     # Write the row
                     csv_writer.writerow(row_values_j)
                     o.flush()
+
+                if verbose != 0:
+                    sys.stdout.write('\nIteration completed in %.0fs\n' % ((time.time() - start)))
+                    sys.stdout.flush()
+
+    _ = sys.stdout.write('\n****************************************************************************************\n')
+    sys.stdout.flush()
 
     ### Remove temporary directory if it was automatically created and the option was selected by the user
     if remove_temp_dir and not temp_dir:
