@@ -1171,14 +1171,14 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index,
                                   validation_data = valid_gen,
                                   epochs = params['epochs'],
                                   use_multiprocessing = True,
-                                  verbose = verbose,
+                                  verbose = verbose_k,
                                   workers = num_threads-1)
     else:
         out = model.fit_generator(generator = train_gen,
                                   validation_data = valid_gen,
                                   epochs = params['epochs'],
                                   use_multiprocessing = False,
-                                  verbose = verbose,
+                                  verbose = verbose_k,
                                   workers = 0)
     hist = out.history   
 
@@ -1356,7 +1356,7 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index,
                                          outcome_index = outcome_index, 
                                          shuffle_epoch = shuffle_epoch,  
                                          num_threads = num_threads, 
-                                         verbose = 0,
+                                         verbose = verbose_t,
                                          metrics = ['accuracy', 'precision', 'recall', 'f1score'],
                                          params = param_comb)
 
@@ -1956,7 +1956,7 @@ def grid_search_NDL(data_train, data_valid, params, prop_grid,
 
 def train(model, data_train, data_valid, cue_index, outcome_index, 
           params, shuffle_epoch = False, num_threads = 1, 
-          verbose = 0, metrics = ['accuracy', 'precision', 'recall', 'f1score'], 
+          verbose = 1, metrics = ['accuracy', 'precision', 'recall', 'f1score'], 
           metric_average = 'macro', chunksize = 10000,
           temp_dir = None, remove_temp_dir = True):
 
@@ -1983,7 +1983,7 @@ def train(model, data_train, data_valid, cue_index, outcome_index,
     num_threads: int
         maximum number of processes to use - it should be >= 1. Default: 1
     verbose: int (0, 1, or 2)
-        verbosity mode. 0 = silent, 1 = progress bar, 2 = one line per epoch.
+        verbosity mode. 0 = silent, 1 = one line per epoch, 2 = detailed. Default: 1
     metrics: list
         for now only ['accuracy', 'precision', 'recall', 'f1score'] is accepted
     metric_average: str
@@ -2097,7 +2097,7 @@ def grid_search(model, data_train, data_valid, cue_index,
         random seed to initialise the pseudorandom number generator (for selecting the parameter 
         combinations to cover). Use it if you want to have replicable results. Default: None
     verbose: int (0, 1, or 2)
-        verbosity mode. 0 = silent, 1 = progress bar, 2 = one line per epoch.
+        verbosity mode. 0 = silent, 1 = one line per parameter combination, 2 = detailed. Default: 1
     chunksize : int
         Can be used only when training NDL. It controls the number of lines to use for computing the accuracy in 
         NDL training. This is done through the computation of the activation matrix for these lines. Default: 10000 
