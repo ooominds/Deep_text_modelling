@@ -322,7 +322,7 @@ class generator_df_FNN(keras.utils.Sequence):
         return X, Y
 
 def train_FNN(data_train, data_valid, cue_index, outcome_index, 
-              shuffle_epoch = False, num_threads = 1, verbose = 0,
+              shuffle_epoch = False, num_threads = 1, verbose = 1,
               metrics = ['accuracy', 'precision', 'recall', 'f1score'],
               params = {'max_len': None,
                         'embedding_input': None,
@@ -355,7 +355,7 @@ def train_FNN(data_train, data_valid, cue_index, outcome_index,
     num_threads: int
         maximum number of processes to use - it should be >= 1. Default: 1
     verbose: int (0, 1, or 2)
-        verbosity mode. 0 = silent, 1 = progress bar, 2 = one line per epoch. Default: 0
+        verbosity mode. 0 = silent, 1 = one line per epoch, 2 = detailed. Default: 1
     metrics: list
     params: dict
         model parameters:
@@ -396,7 +396,21 @@ def train_FNN(data_train, data_valid, cue_index, outcome_index,
     -------
     tuple
         keras fit history and model objects  
-    """
+    """  
+    
+    ### check verbose and convert to keras verbose
+    if verbose == 0:
+        verbose_k = 0
+    elif verbose in (1, 2) :
+        verbose_k = 2
+    else:
+        raise ValueError("incorrect verbose value: choose an integer bewteen 0 and 2")
+
+    if verbose ==2:
+        _ = sys.stdout.write('\n************************* Model compilation stage *************************\n\n')  
+        sys.stdout.flush()
+
+    start_compile = time.time()
 
     ### Extract number of cues and outcomes from the index systems
     num_cues = len(cue_index)
@@ -491,14 +505,22 @@ def train_FNN(data_train, data_valid, cue_index, outcome_index,
         # Add output layer
         model.add(Dense(num_outcomes, 
                         activation = params['last_activation'])) 
-
-    
+  
     ### Compile the model 
     model.compile(loss = params['losses'],
                   optimizer = params['optimizer'](lr = params['lr']),
                   metrics = metrics)
 
-    ### Initiate the generators for the train abd valid data
+    if verbose ==2:
+        _ = sys.stdout.write('Model compilation completed in %.1fs\n\n' \
+                             % (time.time() - start_compile))
+
+        _ = sys.stdout.write('*************************** Model fitting stage ***************************\n\n')    
+        sys.stdout.flush()    
+
+    start_fit = time.time()
+
+    ### Initiate the generators for the train and valid data
     train_gen = generator_train(data = data_train, 
                                 batch_size = batch_size,
                                 num_cues = num_cues,
@@ -525,16 +547,22 @@ def train_FNN(data_train, data_valid, cue_index, outcome_index,
                                   validation_data = valid_gen,
                                   epochs = params['epochs'],
                                   use_multiprocessing = True,
-                                  verbose = verbose,
+                                  verbose = verbose_k,
                                   workers = num_threads-1)
     else:
         out = model.fit_generator(generator = train_gen,
                                   validation_data = valid_gen,
                                   epochs = params['epochs'],
                                   use_multiprocessing = False,
-                                  verbose = verbose,
+                                  verbose = verbose_k,
                                   workers = 0)
     hist = out.history
+
+    if verbose == 2:
+        _ = sys.stdout.write('\nModel fitting completed in %.0fs\n' \
+                             % (time.time() - start_fit))
+        _ = sys.stdout.write('\n**************************************************************************\n')
+        sys.stdout.flush()
     
     return hist, model
 
@@ -601,14 +629,22 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
     seed : int or None
         random seed to initialise the pseudorandom number generator (for selecting the parameter 
         combinations to cover). Use it if you want to have replicable results. Default: None
-    verbose: int (0 or 1)
-        verbosity mode. 0 = silent, 1 = one line per parameter combination. Default:1
+    verbose: int (0, 1, or 2)
+        verbosity mode. 0 = silent, 1 = one line per parameter combination, 2 = detailed. Default: 1
 
     Returns
     -------
     None
         save csv files
     """
+    
+    ### check verbose and convert to train()'s verbose
+    if verbose in (0, 1):
+        verbose_t = 0
+    elif verbose == 2:
+        verbose_t = 1
+    else:
+        raise ValueError("incorrect verbose value: choose an integer bewteen 0 and 2")
     
     ### Select the appropriate model generator based on the type of data
     # Training data
@@ -681,9 +717,14 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
         ### Run the experiments
         for i, param_comb in enumerate(grid_select):
 
+            start = time.time()
+
             # Message at the start of each iteration
-            if verbose == 1:
-                print(f'Iteration {i+1} out of {len(grid_select)}: {param_comb}\n')
+            if verbose != 0:
+                #print(f'Iteration {i+1} out of {len(grid_select)}: {param_comb}\n')
+                _ = sys.stdout.write('\n********************************** Iteration %d out of %d **********************************\n\n' % ((i+1), len(grid_select)))
+                _ = sys.stdout.write('%s\n\n' % (param_comb))
+                sys.stdout.flush()
 
             # this will contain the values that will be recorded in each row. 
             # We start by copying the parameter values
@@ -691,8 +732,10 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
 
             # Check if the current parameter combination has already been processed in the grid search
             if row_values in param_comb_sofar:
-                if verbose == 1:
-                    print(f'This parameter combination was skipped because it was already processed: {param_comb}\n')
+                if verbose != 0:
+                    _ = sys.stdout.write(' - This parameter combination was skipped because it was already processed\n')
+                    sys.stdout.flush()
+                    #print(f' - This parameter combination was skipped because it was already processed: {param_comb}\n')
 
             else:
                 # Fit the model given the current param combination
@@ -702,7 +745,7 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
                                         outcome_index = outcome_index, 
                                         shuffle_epoch = shuffle_epoch, 
                                         num_threads = num_threads, 
-                                        verbose = 0,
+                                        verbose = verbose_t,
                                         metrics = ['accuracy', 'precision', 'recall', 'f1score'],
                                         params = param_comb)
 
@@ -751,10 +794,17 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
                     csv_writer.writerow(row_values_j)
                     o.flush()
 
+                if verbose != 0:
+                    sys.stdout.write('\nIteration completed in %.0fs\n' % ((time.time() - start)))
+                    sys.stdout.flush()
+
                 # Clear memory           
                 del model, hist
                 gc.collect()
                 K.clear_session()
+
+        _ = sys.stdout.write('\n********************************************************************************************\n')
+        sys.stdout.flush()
 
 ########
 # LSTM
@@ -928,7 +978,7 @@ class generator_df_LSTM(keras.utils.Sequence):
         return X, Y
 
 def train_LSTM(data_train, data_valid, cue_index, outcome_index,
-               shuffle_epoch = False, num_threads = 1, verbose = 0,
+               shuffle_epoch = False, num_threads = 1, verbose = 1,
                metrics = ['accuracy', 'precision', 'recall', 'f1score'],
                params = {'max_len': 10,
                          'embedding_input': None,
@@ -959,7 +1009,7 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index,
     num_threads: int
         maximum number of processes to use - it should be >= 1. Default: 1
     verbose: int (0, 1, or 2)
-        verbosity mode. 0 = silent, 1 = progress bar, 2 = one line per epoch.
+        verbosity mode. 0 = silent, 1 = one line per epoch, 2 = detailed. Default: 1
     metrics: list
     params: dict
         model parameters:
@@ -995,6 +1045,20 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index,
     tuple
         keras fit history and model objects  
     """
+
+    ### check verbose and convert to keras verbose
+    if verbose == 0:
+        verbose_k = 0
+    elif verbose in (1, 2):
+        verbose_k = 2
+    else:
+        raise ValueError("incorrect verbose value: choose an integer bewteen 0 and 2")
+
+    if verbose ==2:
+        _ = sys.stdout.write('\n************************* Model compilation stage *************************\n\n')  
+        sys.stdout.flush()
+
+    start_compile = time.time()
 
     ### Extract number of cues and outcomes from the index systems
     num_cues = len(cue_index)
@@ -1071,6 +1135,15 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index,
                   optimizer = params['optimizer'](lr = params['lr']),
                   metrics = metrics)
 
+    if verbose ==2:
+        _ = sys.stdout.write('Model compilation completed in %.1fs\n\n' \
+                             % (time.time() - start_compile))
+
+        _ = sys.stdout.write('*************************** Model fitting stage ***************************\n\n')    
+        sys.stdout.flush()    
+
+    start_fit = time.time()
+
     ### Initiate the generators for the train, valid and test data
     train_gen = generator_train(data = data_train, 
                                 batch_size = batch_size,
@@ -1107,7 +1180,13 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index,
                                   use_multiprocessing = False,
                                   verbose = verbose,
                                   workers = 0)
-    hist = out.history    
+    hist = out.history   
+
+    if verbose == 2:
+        _ = sys.stdout.write('\nModel fitting completed in %.0fs\n' \
+                             % (time.time() - start_fit))
+        _ = sys.stdout.write('\n**************************************************************************\n')
+        sys.stdout.flush() 
 
     return hist, model
  
@@ -1169,14 +1248,22 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index,
     seed : int or None
         random seed to initialise the pseudorandom number generator (for selecting the parameter 
         combinations to cover). Use it if you want to have replicable results. Default: None
-    verbose: int (0 or 1)
-        verbosity mode. 0 = silent, 1 = one line per parameter combination. Default:1
+    verbose: int (0, 1, or 2)
+        verbosity mode. 0 = silent, 1 = one line per parameter combination, 2 = detailed. Default: 1
 
     Returns
     -------
     None
         save csv files
     """
+
+    ### check verbose and convert to train()'s verbose
+    if verbose in (0, 1):
+        verbose_t = 0
+    elif verbose == 2:
+        verbose_t = 1
+    else:
+        raise ValueError("incorrect verbose value: choose an integer bewteen 0 and 2")
 
     ### Select the appropriate model generator based on the type of data
     # Training data
@@ -1241,9 +1328,14 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index,
         ### Run the experiments
         for i, param_comb in enumerate(grid_select):
 
+            start = time.time()
+
             # Message at the start of each iteration
-            if verbose == 1:
-                print(f'Iteration {i+1} out of {len(grid_select)}: {param_comb}\n')
+            if verbose != 0:
+                #print(f'Iteration {i+1} out of {len(grid_select)}: {param_comb}\n')
+                _ = sys.stdout.write('\n********************************** Iteration %d out of %d **********************************\n\n' % ((i+1), len(grid_select)))
+                _ = sys.stdout.write('%s\n\n' % (param_comb))
+                sys.stdout.flush()
 
             # this will contain the values that will be recorded in each row. 
             # We start by copying the parameter values
@@ -1251,8 +1343,10 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index,
 
             # Check if the current parameter combination has already been processed in the grid search
             if row_values in param_comb_sofar:
-                if verbose == 1:
-                    print(f'This parameter combination has already been processed: {param_comb}\n')
+                if verbose != 0:
+                    _ = sys.stdout.write(' - This parameter combination was skipped because it was already processed\n')
+                    sys.stdout.flush()
+                    #print(f' - This parameter combination was skipped because it was already processed: {param_comb}\n')
 
             else:
                 # Fit the model given the current param combination
@@ -1311,10 +1405,17 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index,
                     csv_writer.writerow(row_values_j)
                     o.flush()
 
+                if verbose != 0:
+                    sys.stdout.write('\nIteration completed in %.0fs\n' % ((time.time() - start)))
+                    sys.stdout.flush()
+
                 # Clear memory           
                 del model, hist
                 gc.collect()
                 K.clear_session()
+
+        _ = sys.stdout.write('\n********************************************************************************************\n')
+        sys.stdout.flush()
 
 #####################################
 # Naive discriminative learning model
@@ -1597,6 +1698,7 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
 
     if (j>1 and np.isnan(weights).any()): # display a message to notify about a divergence problem:
         sys.stdout.write('Warning: learning diverged in epoch %d!!!\n' % ((epoch_no_diverg+1)))
+        sys.stdout.flush()
 
     ### Fit history object
     hist = {'accuracy': acc_hist,
@@ -2235,7 +2337,7 @@ def estimate_gridsearch_size(model, params):
         grid_full = [dict(t) for t in {tuple(d.items()) for d in grid_full}]    
 
     ### LSTM model
-    if model == 'LSTM':
+    elif model == 'LSTM':
 
         # Extract the dimensions of the pretrained embeddings
         pretrain_embed_dim = {}
@@ -2268,7 +2370,7 @@ def estimate_gridsearch_size(model, params):
         grid_full = [dict(t) for t in {tuple(d.items()) for d in grid_full}]  
 
     ### NDL model
-    if model == 'NDL': 
+    elif model == 'NDL': 
 
         ### Create a list of dictionaries giving all possible parameter combinations
         keys, values = zip(*params.items())
