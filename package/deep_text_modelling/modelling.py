@@ -541,7 +541,7 @@ def train_FNN(data_train, data_valid, cue_index, outcome_index,
 def grid_search_FNN(data_train, data_valid, cue_index, outcome_index, 
                     params, prop_grid, tuning_output_file,         
                     shuffle_epoch = False, shuffle_grid = True, 
-                    num_threads = 1, verbose = 1):
+                    num_threads = 1, seed = None, verbose = 1):
 
     """ Grid search for feedforward neural networks
 
@@ -598,6 +598,9 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
         provided in `params'
     num_threads: int
         maximum number of processes to use - it should be >= 1. Default: 1
+    seed : int or None
+        random seed to initialise the pseudorandom number generator (for selecting the parameter 
+        combinations to cover). Use it if you want to have replicable results. Default: None
     verbose: int (0 or 1)
         verbosity mode. 0 = silent, 1 = one line per parameter combination. Default:1
 
@@ -658,7 +661,7 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
     
     # shuffle the list of params
     if shuffle_grid:
-        random.shuffle(grid_full)
+        random.Random(seed).shuffle(grid_full)
 
     # Select the combinations to use 
     N_comb = round(prop_grid * len(grid_full)) 
@@ -1110,7 +1113,7 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index,
  
 def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index,
                      params, prop_grid, tuning_output_file, shuffle_epoch = False, 
-                     shuffle_grid = True, num_threads = 1, verbose = 1):
+                     shuffle_grid = True, num_threads = 1, seed = None, verbose = 1):
 
     """ Grid search for LSTM
 
@@ -1163,6 +1166,9 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index,
         provided in `params'
     num_threads: int
         maximum number of processes to use - it should be >= 1. Default: 1
+    seed : int or None
+        random seed to initialise the pseudorandom number generator (for selecting the parameter 
+        combinations to cover). Use it if you want to have replicable results. Default: None
     verbose: int (0 or 1)
         verbosity mode. 0 = silent, 1 = one line per parameter combination. Default:1
 
@@ -1215,7 +1221,7 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index,
 
     # shuffle the list of params
     if shuffle_grid:
-        random.shuffle(grid_full)
+        random.Random(seed).shuffle(grid_full)
 
     ### Select the combinations to use 
     N_comb = round(prop_grid * len(grid_full)) 
@@ -1618,7 +1624,7 @@ def grid_search_NDL(data_train, data_valid, params, prop_grid,
                     metrics = ['accuracy', 'precision', 'recall', 'f1score'], 
                     metric_average = 'macro', shuffle_epoch = False, 
                     shuffle_grid = True, num_threads = 1, chunksize = 10000, 
-                    verbose = 1):
+                    seed = None, verbose = 1):
 
     """ Grid search for the naive discriminative learning model
 
@@ -1672,6 +1678,9 @@ def grid_search_NDL(data_train, data_valid, params, prop_grid,
     chunksize : int
         number of lines to use for computing the accuracy. This is done through 
         the computation of the activation matrix for these lines. Default: 10000
+    seed : int or None
+        random seed to initialise the pseudorandom number generator (for selecting the parameter 
+        combinations to cover). Use it if you want to have replicable results. Default: None
     verbose: int (0 or 1)
         verbosity mode. 0 = silent, 1 = one line per parameter combination. Default:1
 
@@ -1749,7 +1758,7 @@ def grid_search_NDL(data_train, data_valid, params, prop_grid,
 
     # shuffle the list of params
     if shuffle_grid:
-        random.shuffle(grid_full)
+        random.Random(seed).shuffle(grid_full)
 
     ### Select the combinations to use 
     N_comb = round(prop_grid * len(grid_full)) 
@@ -1950,7 +1959,7 @@ def train(model, data_train, data_valid, cue_index, outcome_index,
 def grid_search(model, data_train, data_valid, cue_index, 
                 outcome_index, params, prop_grid, tuning_output_file, 
                 shuffle_epoch = False, shuffle_grid = True, metric_average = 'macro', 
-                num_threads = 1, verbose = 1, chunksize = 10000, 
+                num_threads = 1, seed = None, verbose = 1, chunksize = 10000, 
                 temp_dir = None, remove_temp_dir = True):
 
     """ Grid search for the language learning model
@@ -1982,6 +1991,9 @@ def grid_search(model, data_train, data_valid, cue_index,
         provided in `params'
     num_threads: int
         maximum number of processes to use - it should be >= 1. Default: 1
+    seed : int or None
+        random seed to initialise the pseudorandom number generator (for selecting the parameter 
+        combinations to cover). Use it if you want to have replicable results. Default: None
     verbose: int (0, 1, or 2)
         verbosity mode. 0 = silent, 1 = progress bar, 2 = one line per epoch.
     chunksize : int
@@ -2011,6 +2023,7 @@ def grid_search(model, data_train, data_valid, cue_index,
                         shuffle_epoch = shuffle_epoch, 
                         shuffle_grid = shuffle_grid, 
                         num_threads = num_threads, 
+                        seed = seed,
                         verbose = verbose)
 
     ### LSTM model
@@ -2025,6 +2038,7 @@ def grid_search(model, data_train, data_valid, cue_index,
                          shuffle_epoch = shuffle_epoch, 
                          shuffle_grid = shuffle_grid,  
                          num_threads = num_threads, 
+                         seed = seed,
                          verbose = verbose)
  
     ### NDL model
@@ -2044,6 +2058,7 @@ def grid_search(model, data_train, data_valid, cue_index,
                         shuffle_grid = shuffle_grid, 
                         num_threads = num_threads,
                         chunksize = chunksize, 
+                        seed = seed,
                         verbose = verbose)
 
     # Raise an error if a non-supported model is entered 

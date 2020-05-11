@@ -368,7 +368,8 @@ def text_train_valid_test_split(original_file_path, train_file_path, valid_file_
     encoding: str
         file encoding to use. Default: 'utf-8'
     seed : int or None
-        random seed to initialise numpy's pseudorandom number generator. Default: None
+        random seed to initialise the pseudorandom number generator. Use it if you want to have replicable results. 
+        Default: None
 
 
 
@@ -482,7 +483,8 @@ def df_train_valid_test_split(data, train_data_path, valid_data_path,
     p_test: float
         proportion of the data to use for the test set 
     seed : int or None
-        random seed to initialise numpy's pseudorandom number generator. Default: None
+        random seed to initialise the pseudorandom number generator. Use it if you want to have replicable results. 
+        Default: None
 
     Returns
     -------
@@ -589,7 +591,8 @@ def shuffle_textfile(infile_path, outfile_path, seed = None):
     outfile_path: str
         path to the shuffled file
     seed : int or None
-        random seed to initialise the pseudorandom number generator. Default: None
+        random seed to initialise the pseudorandom number generator. Use it if you want to have replicable results. 
+        Default: None
 
     Returns
     -------
@@ -621,7 +624,8 @@ def create_epochs_textfile(infile_path, outfile_path, epoch, shuffle_epoch = Fal
     shuffle_epoch: Boolean
         whether to shuffle the data after every epoch
     seed : int or None
-        random seed to initialise the pseudorandom number generator. Default: None
+        random seed to initialise the pseudorandom number generator. Use it if you want to have replicable results. 
+        Default: None
 
     Returns
     -------
