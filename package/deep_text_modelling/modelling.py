@@ -1568,58 +1568,65 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
                                 % (time.time() - start_conv_valid))
             sys.stdout.flush()  
     else:
-        raise ValueError("data_valid should be either a path to an event file or a dataframe")
-        
-    ### Paths to the filtered files
-    filtered_events_train_path = os.path.join(temp_dir0, 'filtered_events_train.gz')  
-    filtered_events_valid_path = os.path.join(temp_dir0, 'filtered_events_valid.gz')  
+        raise ValueError("data_valid should be either a path to an event file or a dataframe") 
 
     ### Filter the event files by retaining only the cues and outcomes that are in the index system (e.g. most frequent tokens) 
     ### if these index systems are provided by the user. Otherwise, use all cues and/or outcomes
-    # Cues
-    if cue_index:
-        cues_to_keep = [cue for cue in cue_index.keys()]
-    else:
-        cues_to_keep = 'all'
-    # Outcomes
-    if outcome_index:
-        outcomes_to_keep = [outcome for outcome in outcome_index.keys()]
-    else:
-        outcomes_to_keep = 'all'
+    if cue_index or outcome_index: # Filtering only if an index file is provided
 
-    # Train set 
-    if verbose == 2:
-        _ = sys.stdout.write('********************* Creation of the filtered training event file *********************\n\n')  
-        _ = sys.stdout.write('Progress (each dot represents 100k events): ')
-        sys.stdout.flush()
-        start_filt_train = time.time()
-    filter_event_file(events_train_path,
-                      filtered_events_train_path,
-                      number_of_processes = num_threads,
-                      keep_cues = cues_to_keep,
-                      keep_outcomes = outcomes_to_keep,
-                      verbose = verbose_n)  
-    if verbose == 2:
-        _ = sys.stdout.write('\n\nFiltering completed in %.0fs\n\n' \
-                            % (time.time() - start_filt_train))
-        sys.stdout.flush()
+        # Paths to the filtered files
+        filtered_events_train_path = os.path.join(temp_dir0, 'filtered_events_train.gz')  
+        filtered_events_valid_path = os.path.join(temp_dir0, 'filtered_events_valid.gz')  
 
-    # Validation set 
-    if verbose == 2:
-        _ = sys.stdout.write('******************** Creation of the filtered validation event file ********************\n\n') 
-        _ = sys.stdout.write('Progress (each dot represents 100k events): ') 
-        sys.stdout.flush()
-        start_filt_valid = time.time() 
-    filter_event_file(events_valid_path,
-                      filtered_events_valid_path,
-                      number_of_processes = num_threads,
-                      keep_cues = cues_to_keep,
-                      keep_outcomes = outcomes_to_keep,
-                      verbose = verbose_n) 
-    if verbose == 2:
-        _ = sys.stdout.write('\n\nFiltering completed in %.0fs\n\n' \
-                            % (time.time() - start_filt_valid))
-        sys.stdout.flush()
+        # Cues
+        if cue_index:
+            cues_to_keep = [cue for cue in cue_index.keys()]
+        else:
+            cues_to_keep = 'all'
+        # Outcomes
+        if outcome_index:
+            outcomes_to_keep = [outcome for outcome in outcome_index.keys()]
+        else:
+            outcomes_to_keep = 'all'
+
+        # Train set 
+        if verbose == 2:
+            _ = sys.stdout.write('********************* Creation of the filtered training event file *********************\n\n')  
+            _ = sys.stdout.write('Progress (each dot represents 100k events): ')
+            sys.stdout.flush()
+            start_filt_train = time.time()
+        filter_event_file(events_train_path,
+                          filtered_events_train_path,
+                          number_of_processes = num_threads,
+                          keep_cues = cues_to_keep,
+                          keep_outcomes = outcomes_to_keep,
+                          verbose = verbose_n)  
+        if verbose == 2:
+            _ = sys.stdout.write('\n\nFiltering completed in %.0fs\n\n' \
+                                % (time.time() - start_filt_train))
+            sys.stdout.flush()
+
+        # Validation set 
+        if verbose == 2:
+            _ = sys.stdout.write('******************** Creation of the filtered validation event file ********************\n\n') 
+            _ = sys.stdout.write('Progress (each dot represents 100k events): ') 
+            sys.stdout.flush()
+            start_filt_valid = time.time() 
+        filter_event_file(events_valid_path,
+                          filtered_events_valid_path,
+                          number_of_processes = num_threads,
+                          keep_cues = cues_to_keep,
+                          keep_outcomes = outcomes_to_keep,
+                          verbose = verbose_n) 
+        if verbose == 2:
+            _ = sys.stdout.write('\n\nFiltering completed in %.0fs\n\n' \
+                                % (time.time() - start_filt_valid))
+            sys.stdout.flush()
+
+    else:
+        # Paths to the filtered files
+        filtered_events_train_path = events_train_path  
+        filtered_events_valid_path = events_valid_path 
 
     if verbose == 2:
         _ = sys.stdout.write('********************************* Learning the weights *********************************\n\n')  
@@ -1904,58 +1911,65 @@ def grid_search_NDL(data_train, data_valid, params, prop_grid,
                                 % (time.time() - start_conv_valid))
             sys.stdout.flush()  
     else:
-        raise ValueError("data_valid should be either a path to an event file or a dataframe")
-        
-    ### Paths to the filtered files
-    filtered_events_train_path = os.path.join(temp_dir0, 'filtered_events_train_grid.gz')  
-    filtered_events_valid_path = os.path.join(temp_dir0, 'filtered_events_valid_grid.gz')  
+        raise ValueError("data_valid should be either a path to an event file or a dataframe")  
 
     ### Filter the event files by retaining only the cues and outcomes that are in the index system (e.g. most frequent tokens) 
     ### if these index systems are provided by the user. Otherwise, use all cues and/or outcomes
-    # Cues
-    if cue_index:
-        cues_to_keep = [cue for cue in cue_index.keys()]
-    else:
-        cues_to_keep = 'all'
-    # Outcomes
-    if outcome_index:
-        outcomes_to_keep = [outcome for outcome in outcome_index.keys()]
-    else:
-        outcomes_to_keep = 'all'
+    if cue_index or outcome_index: # Filtering only if an index file is provided
 
-    # Train set 
-    if verbose == 2:
-        _ = sys.stdout.write('********************* Creation of the filtered training event file *********************\n\n')  
-        _ = sys.stdout.write('Progress (each dot represents 100k events): ')
-        sys.stdout.flush()
-        start_filt_train = time.time()
-    filter_event_file(events_train_path,
-                      filtered_events_train_path,
-                      number_of_processes = num_threads,
-                      keep_cues = cues_to_keep,
-                      keep_outcomes = outcomes_to_keep,
-                      verbose = verbose_n)  
-    if verbose == 2:
-        _ = sys.stdout.write('\n\nFiltering completed in %.0fs\n\n' \
-                            % (time.time() - start_filt_train))
-        sys.stdout.flush()
+        # Paths to the filtered files
+        filtered_events_train_path = os.path.join(temp_dir0, 'filtered_events_train_grid.gz')  
+        filtered_events_valid_path = os.path.join(temp_dir0, 'filtered_events_valid_grid.gz')
 
-    # Validation set 
-    if verbose == 2:
-        _ = sys.stdout.write('******************** Creation of the filtered validation event file ********************\n\n') 
-        _ = sys.stdout.write('Progress (each dot represents 100k events): ') 
-        sys.stdout.flush()
-        start_filt_valid = time.time() 
-    filter_event_file(events_valid_path,
-                      filtered_events_valid_path,
-                      number_of_processes = num_threads,
-                      keep_cues = cues_to_keep,
-                      keep_outcomes = outcomes_to_keep,
-                      verbose = verbose_n) 
-    if verbose == 2:
-        _ = sys.stdout.write('\n\nFiltering completed in %.0fs\n\n' \
-                            % (time.time() - start_filt_valid))
-        sys.stdout.flush()
+        # Cues
+        if cue_index:
+            cues_to_keep = [cue for cue in cue_index.keys()]
+        else:
+            cues_to_keep = 'all'
+        # Outcomes
+        if outcome_index:
+            outcomes_to_keep = [outcome for outcome in outcome_index.keys()]
+        else:
+            outcomes_to_keep = 'all'
+
+        # Train set 
+        if verbose == 2:
+            _ = sys.stdout.write('********************* Creation of the filtered training event file *********************\n\n')  
+            _ = sys.stdout.write('Progress (each dot represents 100k events): ')
+            sys.stdout.flush()
+            start_filt_train = time.time()
+        filter_event_file(events_train_path,
+                          filtered_events_train_path,
+                          number_of_processes = num_threads,
+                          keep_cues = cues_to_keep,
+                          keep_outcomes = outcomes_to_keep,
+                          verbose = verbose_n)  
+        if verbose == 2:
+            _ = sys.stdout.write('\n\nFiltering completed in %.0fs\n\n' \
+                                % (time.time() - start_filt_train))
+            sys.stdout.flush()
+
+        # Validation set 
+        if verbose == 2:
+            _ = sys.stdout.write('******************** Creation of the filtered validation event file ********************\n\n') 
+            _ = sys.stdout.write('Progress (each dot represents 100k events): ') 
+            sys.stdout.flush()
+            start_filt_valid = time.time() 
+        filter_event_file(events_valid_path,
+                          filtered_events_valid_path,
+                          number_of_processes = num_threads,
+                          keep_cues = cues_to_keep,
+                          keep_outcomes = outcomes_to_keep,
+                          verbose = verbose_n) 
+        if verbose == 2:
+            _ = sys.stdout.write('\n\nFiltering completed in %.0fs\n\n' \
+                                % (time.time() - start_filt_valid))
+            sys.stdout.flush()
+
+    else:
+        # Paths to the filtered files
+        filtered_events_train_path = events_train_path  
+        filtered_events_valid_path = events_valid_path
 
     ### Create a list of dictionaries giving all possible parameter combinations
     keys, values = zip(*params.items())
