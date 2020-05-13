@@ -1448,7 +1448,7 @@ class NDLmodel():
         #self.performance_hist = performance_hist
 
 def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
-              shuffle_epoch = False, num_threads = 1, chunksize = 10000, verbose = 1, 
+              shuffle_epoch = False, num_threads = 1, chunksize = None, verbose = 1, 
               temp_dir = None, remove_temp_dir = True,
               metrics = ['accuracy', 'precision', 'recall', 'f1score'], 
               metric_average = 'macro',
@@ -1473,9 +1473,10 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
         whether to shuffle the data after every epoch (not supported for now). Defult: False
     num_threads: int
         maximum number of processes to use - it should be >= 1. Default: 1
-    chunksize : int
-        number of lines to use for computing the accuracy. This is done through 
-        the computation of the activation matrix for these lines. Default: 10000 
+    chunksize : int or None
+        number of lines to use for computing the accuracy (set if the data is very large and/or there is a huge number 
+        of outcomes - e.g. chunksize = 10000). This is done through the computation of the activation matrix for these 
+        lines. If None, all lines will be used. Default: None
     verbose: int (0, 1, or 2)
         verbosity mode. 0 = silent, 1 = one line per epoch, 2 = detailed. Default: 1
     temp_dir: str
@@ -1690,7 +1691,7 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
                                                 temp_dir = temp_dir0,
                                                 remove_temp_dir = False,
                                                 chunksize = chunksize, 
-                                                num_threads = num_threads)
+                                                num_threads = 1)
             if verbose == 2:
                 sys.stdout.write(' - train pred in %.0fs\n' % ((time.time() - start_pred_train)))
                 sys.stdout.flush()
@@ -1700,7 +1701,7 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
                                                 temp_dir = temp_dir0,
                                                 remove_temp_dir = False,
                                                 chunksize = chunksize, 
-                                                num_threads = num_threads)
+                                                num_threads = 1)
             if verbose == 2:
                 sys.stdout.write(' - valid pred in %.0fs\n' % ((time.time() - start_pred_valid)))
                 sys.stdout.flush()
@@ -1711,12 +1712,6 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
                 events_train_df = pd.read_csv(filtered_events_train_path, header = 0, sep='\t', quotechar='"', usecols = ['outcomes'])
                 y_train_true = events_train_df['outcomes'].tolist()    
                 del events_train_df
-            # # tain set 
-            # events_train_df = pd.read_csv(filtered_events_train_path, header = 0, sep='\t', quotechar='"', usecols = ['outcomes'])
-            # y_train_true = events_train_df['outcomes'].tolist()    
-            # # validation set 
-            # events_valid_df = pd.read_csv(filtered_events_valid_path, header = 0, sep='\t', quotechar='"', usecols = ['outcomes'])
-            # y_valid_true = events_valid_df['outcomes'].tolist()
             
             # Compute performance scores for the different metrics
             # accuracy

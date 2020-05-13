@@ -493,7 +493,7 @@ def chunk(iterable, chunksize):
     return iter(lambda: list(islice(iterator, chunksize)), [])
 
 def predict_outcomes_NDL(model, data_test, temp_dir = None, remove_temp_dir = True, 
-                         num_threads = 1, chunksize = 10000):
+                         num_threads = 1, chunksize = None):
 
     """ Generate outcome predictions for NDL
 
@@ -510,9 +510,11 @@ def predict_outcomes_NDL(model, data_test, temp_dir = None, remove_temp_dir = Tr
     remove_temp_dir: Boolean
         whether or not to remove the temporary directory if one was automatically created. Default: True
     num_threads: int
-        maximum number of processes to use when computing the activations is the data is unseen. Default: 1
-    chunksize : int
-        number of lines to use for computing the activation matrix for these lines. Default: 10000
+        maximum number of processes to use when computing the activations (better to use 1). Default: 1
+        
+    chunksize : int or None
+        number of lines to use for computing the activation matrix for these lines. If None, all lines will be used. 
+        Default: None
 
     Returns
     -------
@@ -546,19 +548,28 @@ def predict_outcomes_NDL(model, data_test, temp_dir = None, remove_temp_dir = Tr
     else:
         raise ValueError("data_test should be either a path to an event file or a dataframe")
 
-    y_pred = []
-    events = io.events_from_file(events_test_path)
-    for events_chunk in chunk(events, chunksize):
-        activations = activation(events = events_chunk, 
+    if chunksize:
+        y_pred = []
+        events = io.events_from_file(events_test_path)
+        for events_chunk in chunk(events, chunksize):
+            activations = activation(events = events_chunk, 
+                                    weights = model.weights,
+                                    number_of_threads = num_threads,
+                                    remove_duplicates = True,
+                                    ignore_missing_cues = True)
+            # Predicted outcomes from the activations
+            y_pred.extend(activations_to_predictions(activations)) 
+    else:
+        activations = activation(events = events_test_path, 
                                  weights = model.weights,
                                  number_of_threads = num_threads,
                                  remove_duplicates = True,
                                  ignore_missing_cues = True)
         # Predicted outcomes from the activations
-        y_pred.extend(activations_to_predictions(activations)) 
+        y_pred = activations_to_predictions(activations)
 
     ### Remove temporary directory if it was automatically created and the option was selected by the user
-    if remove_temp_dir and temp_dir:
+    if remove_temp_dir and not temp_dir:
         try:
             shutil.rmtree(temp_dir0)
         except OSError as e:
@@ -665,8 +676,6 @@ def predict_proba_eventfile_NDL(model, data_test, temp_dir = None, remove_temp_d
         # if temp_dir:
         events_test_path = os.path.join(temp_dir, 'data_test_temp.gz')
         df_to_gz(data = data_test, gz_outfile = events_test_path)
-        # else: 
-        #     raise ValueError("provide a path to a temporary directory for generating a temporary .gz event file")
     else:
         raise ValueError("data_test should be either a path to an event file or a dataframe")
 
@@ -683,7 +692,7 @@ def predict_proba_eventfile_NDL(model, data_test, temp_dir = None, remove_temp_d
     proba_pred = activations_to_proba(activations = activations_test, T = T)
 
     ### Remove temporary directory if it was automatically created and the option was selected by the user
-    if remove_temp_dir and temp_dir:
+    if remove_temp_dir and not temp_dir:
         try:
             shutil.rmtree(temp_dir0)
         except OSError as e:
