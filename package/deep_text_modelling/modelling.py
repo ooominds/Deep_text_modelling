@@ -1519,6 +1519,12 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
     else:
         raise ValueError("incorrect verbose value: choose an integer bewteen 0 and 2")
 
+    # If the operating system is a macOS, use method = 'threading' otherwise use 'openmp'
+    if sys.platform == 'darwin': # if a Mac user
+        method_n = 'threading'
+    else:
+        method_n = 'openmp'
+
     # Create a temporary directory if not provided
     if not temp_dir:
         temp_dir0 = os.path.join(os.getcwd(), 'TEMP_TRAIN_DIRECTORY')
@@ -1674,7 +1680,7 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
             weights = ndl(events = filtered_events_train_path,
                           alpha = params['lr'], 
                           betas = (1, 1),
-                          method = "openmp",
+                          method = method_n,
                           weights = weights,
                           number_of_threads = num_threads,
                           remove_duplicates = True,
@@ -1691,7 +1697,7 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
                                                 temp_dir = temp_dir0,
                                                 remove_temp_dir = False,
                                                 chunksize = chunksize, 
-                                                num_threads = 1)
+                                                num_threads = 1) # faster to use 1 for computing the activations
             if verbose == 2:
                 sys.stdout.write(' - train pred in %.0fs\n' % ((time.time() - start_pred_train)))
                 sys.stdout.flush()
@@ -1701,7 +1707,7 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
                                                 temp_dir = temp_dir0,
                                                 remove_temp_dir = False,
                                                 chunksize = chunksize, 
-                                                num_threads = 1)
+                                                num_threads = 1) # faster to use 1 for computing the activations
             if verbose == 2:
                 sys.stdout.write(' - valid pred in %.0fs\n' % ((time.time() - start_pred_valid)))
                 sys.stdout.flush()
