@@ -62,7 +62,6 @@ def seq_to_integers_1darray(seq, index_system, N_tokens, max_len = None):
 
     # List of words in the sentence 
     targets = seq.split('_')
-    #target_indices = [[index_system[w] for w in targets if w in index_system]]
 
     if max_len: # pad sequences if max_len is given
         target_indices = [[index_system[w] for w in targets if w in index_system]]
@@ -720,7 +719,6 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
 
             # Message at the start of each iteration
             if verbose != 0:
-                #print(f'Iteration {i+1} out of {len(grid_select)}: {param_comb}\n')
                 _ = sys.stdout.write('\n********************************** Iteration %d out of %d **********************************\n\n' % ((i+1), len(grid_select)))
                 _ = sys.stdout.write('*** Parameter combination \n\n') 
                 _ = sys.stdout.write('%s\n' % (param_comb))
@@ -735,7 +733,6 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
                 if verbose != 0:
                     _ = sys.stdout.write('\nThis parameter combination was skipped because it has already been processed\n')
                     sys.stdout.flush()
-                    #print(f' - This parameter combination was skipped because it has already been processed: {param_comb}\n')
 
             else:
                 # Fit the model given the current param combination
@@ -1119,7 +1116,6 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index,
             params['embedding_dim'] = extract_embedding_dim(params['embedding_input']) # Extract embedding dimension
             model.add(Embedding(num_cues+1, params['embedding_dim'], input_length = max_len, 
                                 weights = [params['embedding_input']], trainable = False))
-        #model.add(Flatten())
 
     # LSTM layer 
     model.add(LSTM(params['hidden_neuron'], return_sequences = False, input_shape = (max_len, num_cues))) 
@@ -1332,7 +1328,6 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index,
 
             # Message at the start of each iteration
             if verbose != 0:
-                #print(f'Iteration {i+1} out of {len(grid_select)}: {param_comb}\n')
                 _ = sys.stdout.write('\n********************************** Iteration %d out of %d **********************************\n\n' % ((i+1), len(grid_select)))
                 _ = sys.stdout.write('*** Parameter combination \n\n') 
                 _ = sys.stdout.write('%s\n' % (param_comb))
@@ -1347,7 +1342,6 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index,
                 if verbose != 0:
                     _ = sys.stdout.write('\nThis parameter combination was skipped because it has already been processed\n')
                     sys.stdout.flush()
-                    #print(f' - This parameter combination was skipped because it has already been processed: {param_comb}\n')
 
             else:
                 # Fit the model given the current param combination
@@ -1476,7 +1470,7 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
         If None, all outcomes in the event file are used. Otherwise a dictionary that maps outcomes to indices should 
         be given. The dictionary should include only the outcomes to keep in the data. Default: None
     shuffle_epoch: Boolean
-        whether to shuffle the data after every epoch
+        whether to shuffle the data after every epoch (not supported for now). Defult: False
     num_threads: int
         maximum number of processes to use - it should be >= 1. Default: 1
     chunksize : int
@@ -1651,12 +1645,20 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
     val_precision_hist = []
     val_recall_hist = []
     val_f1score_hist = []
+
+    ### True outcomes 
+    if not shuffle_epoch: # Extract the train y-values once here only if no shuffling is needed
+        # tain set 
+        events_train_df = pd.read_csv(filtered_events_train_path, header = 0, sep='\t', quotechar='"', usecols = ['outcomes'])
+        y_train_true = events_train_df['outcomes'].tolist()    
+        del events_train_df
+    # validation set 
+    events_valid_df = pd.read_csv(filtered_events_valid_path, header = 0, sep='\t', quotechar='"', usecols = ['outcomes'])
+    y_valid_true = events_valid_df['outcomes'].tolist()
+    del events_valid_df
     
     # Train NDL for the chosen number of epochs. Each time save and print the metric scores
     for j in range(1, (1+params['epochs'])):
-
-        # Record start time
-        #start = time.time()
 
         if ((j == 1) or (not np.isnan(weights).any())): # if no nan values in the weight matrix (i.e. no divergence problem):
 
@@ -1704,12 +1706,17 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
                 sys.stdout.flush()
 
             ### True outcomes 
-            # tain set 
-            events_train_df = pd.read_csv(filtered_events_train_path, header = 0, sep='\t', quotechar='"', usecols = ['outcomes'])
-            y_train_true = events_train_df['outcomes'].tolist()    
-            # validation set 
-            events_valid_df = pd.read_csv(filtered_events_valid_path, header = 0, sep='\t', quotechar='"', usecols = ['outcomes'])
-            y_valid_true = events_valid_df['outcomes'].tolist()
+            if shuffle_epoch: # Extract the true y-values each time if the train data is shuffled 
+                # tain set 
+                events_train_df = pd.read_csv(filtered_events_train_path, header = 0, sep='\t', quotechar='"', usecols = ['outcomes'])
+                y_train_true = events_train_df['outcomes'].tolist()    
+                del events_train_df
+            # # tain set 
+            # events_train_df = pd.read_csv(filtered_events_train_path, header = 0, sep='\t', quotechar='"', usecols = ['outcomes'])
+            # y_train_true = events_train_df['outcomes'].tolist()    
+            # # validation set 
+            # events_valid_df = pd.read_csv(filtered_events_valid_path, header = 0, sep='\t', quotechar='"', usecols = ['outcomes'])
+            # y_valid_true = events_valid_df['outcomes'].tolist()
             
             # Compute performance scores for the different metrics
             # accuracy
@@ -1764,10 +1771,11 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
 
         # Display progress message  
         if verbose != 0:
-            #now = time.time()
-            #sys.stdout.write('Epoch %d/%d\n' % (j, params['epochs']))
             sys.stdout.write(' - %.0fs - acc: %.4f - val_acc: %.4f\n' % ((time.time() - start_weight), acc_j, val_acc_j))
             sys.stdout.flush()
+
+        # Garbage collection after each iteration
+        gc.collect()
 
     if verbose == 2:
         _ = sys.stdout.write('\nTraining completed in %.0fs\n' \
@@ -1791,12 +1799,6 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
             'val_recall': val_recall_hist,
             'val_f1score': val_f1score_hist
             }
-
-    # if verbose == 2:
-    #     _ = sys.stdout.write('Learning completed in %.0fs\n' \
-    #                         % (time.time() - start_learn))
-    #     #_ = sys.stdout.write('\n****************************************************************************************\n')
-    #     sys.stdout.flush()
 
     ### Remove temporary directory if it was automatically created and the option was selected by the user
     if remove_temp_dir and not temp_dir:
@@ -2025,7 +2027,6 @@ def grid_search_NDL(data_train, data_valid, params, prop_grid,
 
             # Message at the start of each iteration
             if verbose != 0:
-                #print(f'Iteration {i+1} out of {len(grid_select)}: {param_comb}\n')
                 _ = sys.stdout.write('\n******************************** Iteration %d out of %d *********************************\n\n' % ((i+1), len(grid_select)))
                 _ = sys.stdout.write('*** Parameter combination \n\n') 
                 _ = sys.stdout.write('%s\n\n' % (param_comb))
@@ -2349,9 +2350,6 @@ def export_model(model, path):
         model.save(path)
     elif isinstance(model, NDLmodel):  
         model.weights.to_netcdf(path) # Only the weight matrix is saved 
-        # with h5py.File(path, 'w') as f:
-        #     for item in vars(model).items():
-        #         f.create_dataset(item[0], data = item[1])
     else: 
         raise ValueError("model should be a keras (Sequential class) or ndl (NDLmodel class) model")
 
