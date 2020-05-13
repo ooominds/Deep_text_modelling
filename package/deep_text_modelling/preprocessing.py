@@ -32,8 +32,8 @@ def df_to_gz(data, gz_outfile, sep_gz = '\t', encoding = 'utf-8'):
         save a .gz file
     """
 
-    with gzip.open(gz_outfile, 'wt', encoding = encoding) as out:
-        data.to_csv(out, sep = sep_gz, index = False, encoding = encoding)
+    #with gzip.open(gz_outfile, 'wt', encoding = encoding) as out:
+    data.to_csv(gz_outfile, compression = 'gzip', sep = sep_gz, index = False, encoding = encoding)
 
 def csv_to_gz(csv_infile, gz_outfile, sep_gz = '\t', encoding = 'utf-8'):
 
