@@ -407,7 +407,7 @@ def train_FNN(data_train, data_valid, cue_index, outcome_index,
         raise ValueError("incorrect verbose value: choose an integer bewteen 0 and 2")
 
     if verbose == 2:
-        _ = sys.stdout.write('\n************************* Model compilation stage *************************\n\n')  
+        _ = sys.stdout.write('\n*** Model compilation\n\n')  
         sys.stdout.flush()
 
     start_compile = time.time()
@@ -515,7 +515,7 @@ def train_FNN(data_train, data_valid, cue_index, outcome_index,
         _ = sys.stdout.write('Model compilation completed in %.1fs\n\n' \
                              % (time.time() - start_compile))
 
-        _ = sys.stdout.write('*************************** Model fitting stage ***************************\n\n')    
+        _ = sys.stdout.write('*** Model fitting\n\n')    
         sys.stdout.flush()    
 
     start_fit = time.time()
@@ -561,7 +561,6 @@ def train_FNN(data_train, data_valid, cue_index, outcome_index,
     if verbose == 2:
         _ = sys.stdout.write('\nModel fitting completed in %.0fs\n' \
                              % (time.time() - start_fit))
-        _ = sys.stdout.write('\n**************************************************************************\n')
         sys.stdout.flush()
     
     return hist, model
@@ -642,7 +641,7 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
     if verbose in (0, 1):
         verbose_t = 0
     elif verbose == 2:
-        verbose_t = 1
+        verbose_t = 2
     else:
         raise ValueError("incorrect verbose value: choose an integer bewteen 0 and 2")
     
@@ -723,7 +722,8 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
             if verbose != 0:
                 #print(f'Iteration {i+1} out of {len(grid_select)}: {param_comb}\n')
                 _ = sys.stdout.write('\n********************************** Iteration %d out of %d **********************************\n\n' % ((i+1), len(grid_select)))
-                _ = sys.stdout.write('%s\n\n' % (param_comb))
+                _ = sys.stdout.write('*** Parameter combination \n\n') 
+                _ = sys.stdout.write('%s\n' % (param_comb))
                 sys.stdout.flush()
 
             # this will contain the values that will be recorded in each row. 
@@ -733,7 +733,7 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
             # Check if the current parameter combination has already been processed in the grid search
             if row_values in param_comb_sofar:
                 if verbose != 0:
-                    _ = sys.stdout.write(' - This parameter combination was skipped because it has already been processed\n')
+                    _ = sys.stdout.write('\nThis parameter combination was skipped because it has already been processed\n')
                     sys.stdout.flush()
                     #print(f' - This parameter combination was skipped because it has already been processed: {param_comb}\n')
 
@@ -794,7 +794,7 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
                     csv_writer.writerow(row_values_j)
                     o.flush()
 
-                if verbose != 0:
+                if verbose == 1:
                     sys.stdout.write('\nIteration completed in %.0fs\n' % ((time.time() - start)))
                     sys.stdout.flush()
 
@@ -803,8 +803,9 @@ def grid_search_FNN(data_train, data_valid, cue_index, outcome_index,
                 gc.collect()
                 K.clear_session()
 
-        _ = sys.stdout.write('\n********************************************************************************************\n')
-        sys.stdout.flush()
+        if verbose != 0:
+            _ = sys.stdout.write('\n********************************************************************************************\n')
+            sys.stdout.flush()
 
 ########
 # LSTM
@@ -1055,7 +1056,7 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index,
         raise ValueError("incorrect verbose value: choose an integer bewteen 0 and 2")
 
     if verbose ==2:
-        _ = sys.stdout.write('\n************************* Model compilation stage *************************\n\n')  
+        _ = sys.stdout.write('\n*** Model compilation\n\n')  
         sys.stdout.flush()
 
     start_compile = time.time()
@@ -1139,7 +1140,7 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index,
         _ = sys.stdout.write('Model compilation completed in %.1fs\n\n' \
                              % (time.time() - start_compile))
 
-        _ = sys.stdout.write('*************************** Model fitting stage ***************************\n\n')    
+        _ = sys.stdout.write('*** Model fitting\n\n')    
         sys.stdout.flush()    
 
     start_fit = time.time()
@@ -1185,7 +1186,6 @@ def train_LSTM(data_train, data_valid, cue_index, outcome_index,
     if verbose == 2:
         _ = sys.stdout.write('\nModel fitting completed in %.0fs\n' \
                              % (time.time() - start_fit))
-        _ = sys.stdout.write('\n**************************************************************************\n')
         sys.stdout.flush() 
 
     return hist, model
@@ -1261,7 +1261,7 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index,
     if verbose in (0, 1):
         verbose_t = 0
     elif verbose == 2:
-        verbose_t = 1
+        verbose_t = 2
     else:
         raise ValueError("incorrect verbose value: choose an integer bewteen 0 and 2")
 
@@ -1334,7 +1334,8 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index,
             if verbose != 0:
                 #print(f'Iteration {i+1} out of {len(grid_select)}: {param_comb}\n')
                 _ = sys.stdout.write('\n********************************** Iteration %d out of %d **********************************\n\n' % ((i+1), len(grid_select)))
-                _ = sys.stdout.write('%s\n\n' % (param_comb))
+                _ = sys.stdout.write('*** Parameter combination \n\n') 
+                _ = sys.stdout.write('%s\n' % (param_comb))
                 sys.stdout.flush()
 
             # this will contain the values that will be recorded in each row. 
@@ -1344,7 +1345,7 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index,
             # Check if the current parameter combination has already been processed in the grid search
             if row_values in param_comb_sofar:
                 if verbose != 0:
-                    _ = sys.stdout.write(' - This parameter combination was skipped because it has already been processed\n')
+                    _ = sys.stdout.write('\nThis parameter combination was skipped because it has already been processed\n')
                     sys.stdout.flush()
                     #print(f' - This parameter combination was skipped because it has already been processed: {param_comb}\n')
 
@@ -1405,7 +1406,7 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index,
                     csv_writer.writerow(row_values_j)
                     o.flush()
 
-                if verbose != 0:
+                if verbose == 1:
                     sys.stdout.write('\nIteration completed in %.0fs\n' % ((time.time() - start)))
                     sys.stdout.flush()
 
@@ -1414,8 +1415,9 @@ def grid_search_LSTM(data_train, data_valid, cue_index, outcome_index,
                 gc.collect()
                 K.clear_session()
 
-        _ = sys.stdout.write('\n********************************************************************************************\n')
-        sys.stdout.flush()
+        if verbose != 0:
+            _ = sys.stdout.write('\n********************************************************************************************\n')
+            sys.stdout.flush()
 
 #####################################
 # Naive discriminative learning model
@@ -1541,7 +1543,7 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
         events_train_path = data_train
     elif isinstance(data_train, pd.DataFrame):
         if verbose ==2:
-            _ = sys.stdout.write('\n******************** Conversion of the training event-file into .gz ********************\n\n')  
+            _ = sys.stdout.write('\n*** Conversion of the training event-file into .gz\n\n')  
             sys.stdout.flush()
         start_conv_train = time.time()
         events_train_path = os.path.join(temp_dir0, 'unfiltered_events_train.gz')
@@ -1558,7 +1560,7 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
         events_valid_path = data_valid
     elif isinstance(data_valid, pd.DataFrame):
         if verbose ==2:
-            _ = sys.stdout.write('******************* Conversion of the validation event-file into .gz *******************\n\n')  
+            _ = sys.stdout.write('*** Conversion of the validation event-file into .gz\n\n')  
             sys.stdout.flush()
         start_conv_valid = time.time()
         events_valid_path = os.path.join(temp_dir0, 'unfiltered_events_valid.gz')
@@ -1591,7 +1593,7 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
 
         # Train set 
         if verbose == 2:
-            _ = sys.stdout.write('********************* Creation of the filtered training event file *********************\n\n')  
+            _ = sys.stdout.write('*** Creation of the filtered training event file\n\n')  
             _ = sys.stdout.write('Progress (each dot represents 100k events): ')
             sys.stdout.flush()
             start_filt_train = time.time()
@@ -1608,7 +1610,7 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
 
         # Validation set 
         if verbose == 2:
-            _ = sys.stdout.write('******************** Creation of the filtered validation event file ********************\n\n') 
+            _ = sys.stdout.write('*** Creation of the filtered validation event file\n\n') 
             _ = sys.stdout.write('Progress (each dot represents 100k events): ') 
             sys.stdout.flush()
             start_filt_valid = time.time() 
@@ -1629,9 +1631,10 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
         filtered_events_valid_path = events_valid_path 
 
     if verbose == 2:
-        _ = sys.stdout.write('********************************* Learning the weights *********************************\n\n')  
+        _ = sys.stdout.write('*** Training\n\n')  
         sys.stdout.flush()
-        start_learn = time.time() 
+    
+    start_learn = time.time() 
 
     # Initialise the weight matrix
     weights = None
@@ -1653,13 +1656,18 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
     for j in range(1, (1+params['epochs'])):
 
         # Record start time
-        start = time.time()
+        #start = time.time()
 
         if ((j == 1) or (not np.isnan(weights).any())): # if no nan values in the weight matrix (i.e. no divergence problem):
+
+            if verbose != 0:
+                sys.stdout.write('Epoch %d/%d\n' % (j, params['epochs']))
+                sys.stdout.flush()
 
             epoch_no_diverg = j # Keep track of the last epoch without a divergence problem
 
             # Train ndl to get the weight matrix 
+            start_weight = time.time()
             weights = ndl(events = filtered_events_train_path,
                           alpha = params['lr'], 
                           betas = (1, 1),
@@ -1669,20 +1677,31 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
                           remove_duplicates = True,
                           temporary_directory = temp_dir0,
                           verbose = False)
-      
+            if verbose == 2:
+                sys.stdout.write(' - weight mat in %.0fs\n' % ((time.time() - start_weight)))
+                sys.stdout.flush()
+
             # Predicted outcomes from the activations
+            start_pred_train = time.time()
             y_train_pred = predict_outcomes_NDL(model = NDLmodel(weights),  
                                                 data_test = filtered_events_train_path,
                                                 temp_dir = temp_dir0,
                                                 remove_temp_dir = False,
                                                 chunksize = chunksize, 
                                                 num_threads = num_threads)
+            if verbose == 2:
+                sys.stdout.write(' - train pred in %.0fs\n' % ((time.time() - start_pred_train)))
+                sys.stdout.flush()
+            start_pred_valid = time.time()
             y_valid_pred = predict_outcomes_NDL(model = NDLmodel(weights), 
                                                 data_test = filtered_events_valid_path, 
                                                 temp_dir = temp_dir0,
                                                 remove_temp_dir = False,
                                                 chunksize = chunksize, 
                                                 num_threads = num_threads)
+            if verbose == 2:
+                sys.stdout.write(' - valid pred in %.0fs\n' % ((time.time() - start_pred_valid)))
+                sys.stdout.flush()
 
             ### True outcomes 
             # tain set 
@@ -1745,11 +1764,16 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
 
         # Display progress message  
         if verbose != 0:
-            now = time.time()
-            sys.stdout.write('Epoch %d/%d\n' % (j, params['epochs']))
-            sys.stdout.write(' - %.0fs - acc: %.4f - val_acc: %.4f\n' % ((now - start), acc_j, val_acc_j))
+            #now = time.time()
+            #sys.stdout.write('Epoch %d/%d\n' % (j, params['epochs']))
+            sys.stdout.write(' - %.0fs - acc: %.4f - val_acc: %.4f\n' % ((time.time() - start_weight), acc_j, val_acc_j))
             sys.stdout.flush()
 
+    if verbose == 2:
+        _ = sys.stdout.write('\nTraining completed in %.0fs\n' \
+                            % (time.time() - start_learn))
+        sys.stdout.flush()
+                      
     ### Model object
     model = NDLmodel(weights)
 
@@ -1768,11 +1792,11 @@ def train_NDL(data_train, data_valid, cue_index = None, outcome_index = None,
             'val_f1score': val_f1score_hist
             }
 
-    if verbose == 2:
-        _ = sys.stdout.write('Learning completed in %.0fs\n' \
-                            % (time.time() - start_learn))
-        _ = sys.stdout.write('\n****************************************************************************************\n')
-        sys.stdout.flush()
+    # if verbose == 2:
+    #     _ = sys.stdout.write('Learning completed in %.0fs\n' \
+    #                         % (time.time() - start_learn))
+    #     #_ = sys.stdout.write('\n****************************************************************************************\n')
+    #     sys.stdout.flush()
 
     ### Remove temporary directory if it was automatically created and the option was selected by the user
     if remove_temp_dir and not temp_dir:
@@ -1855,12 +1879,12 @@ def grid_search_NDL(data_train, data_valid, params, prop_grid,
         save csv files
     """
 
-    ### check verbose and convert to train()'s verbose
+    ### check verbose and convert to NDL and train() verbose
     if verbose in (0, 1):
         verbose_t = 0
         verbose_n = False
     elif verbose == 2:
-        verbose_t = 1
+        verbose_t = 2
         verbose_n = True
     else:
         raise ValueError("incorrect verbose value: choose an integer bewteen 0 and 2")
@@ -2002,7 +2026,8 @@ def grid_search_NDL(data_train, data_valid, params, prop_grid,
             # Message at the start of each iteration
             if verbose != 0:
                 #print(f'Iteration {i+1} out of {len(grid_select)}: {param_comb}\n')
-                _ = sys.stdout.write('\n******************************** Iteration %d out of %d ********************************\n\n' % ((i+1), len(grid_select)))
+                _ = sys.stdout.write('\n******************************** Iteration %d out of %d *********************************\n\n' % ((i+1), len(grid_select)))
+                _ = sys.stdout.write('*** Parameter combination \n\n') 
                 _ = sys.stdout.write('%s\n\n' % (param_comb))
                 sys.stdout.flush()
 
@@ -2018,7 +2043,7 @@ def grid_search_NDL(data_train, data_valid, params, prop_grid,
             # Check if the current parameter combination has already been processed in the grid search
             if row_values in param_comb_sofar:
                 if verbose != 0:
-                    _ = sys.stdout.write(' - This parameter combination was skipped because it has already been processed\n')
+                    _ = sys.stdout.write('This parameter combination was skipped because it has already been processed\n')
                     sys.stdout.flush()
                     #print(f' - This parameter combination was skipped because it has already been processed: {param_comb}\n')
 
@@ -2064,12 +2089,13 @@ def grid_search_NDL(data_train, data_valid, params, prop_grid,
                     csv_writer.writerow(row_values_j)
                     o.flush()
 
-                if verbose != 0:
-                    sys.stdout.write('\nIteration completed in %.0fs\n' % ((time.time() - start)))
+                if verbose == 1:
+                    sys.stdout.write('Iteration completed in %.0fs\n' % ((time.time() - start)))
                     sys.stdout.flush()
 
-    _ = sys.stdout.write('\n****************************************************************************************\n')
-    sys.stdout.flush()
+    if verbose != 0:
+        _ = sys.stdout.write('\n****************************************************************************************\n')
+        sys.stdout.flush()
 
     ### Remove temporary directory if it was automatically created and the option was selected by the user
     if remove_temp_dir and not temp_dir:
