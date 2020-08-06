@@ -1,11 +1,25 @@
 import gzip
 import csv
 import numpy as np
+import pandas as pd
 import random
+import re
+import sys
+from itertools import islice
+from functools import partial
+from multiprocessing import Pool
+from nltk.util import ngrams
 from collections.abc import Iterable
 from collections import Counter
 from random import shuffle
 from keras.preprocessing.text import Tokenizer
+
+### Set of allowed English characters
+ENGLISH = "abcdefghijklmnopqrstuvwxyz"
+ENGLISH = ENGLISH + ENGLISH.upper()
+
+# Compiled regular expression that detects disallowed English characters
+not_symbol_pattern_en = re.compile(f"[^{ENGLISH}]")
 
 #######################################
 # Conversion between csv and gz formats
@@ -537,44 +551,528 @@ def df_train_valid_test_split(data, train_data_path, valid_data_path,
     print(f"- Number of rows in the validation set is {N_valid}")
     print(f"- Number of rows in the test set is {N_test}")
 
-################
-# Create ngrams
-################
+#####################
+# Create event files
+#####################
 
-def orthoCoding(sent, gram_size, remove_duplicates = False, randomize_order = False):
+def uniquify_list(seq): 
 
-    """Create ngrams from a sentence.
+    """Uniquifies a list while preserving the original order of the list
+
     Parameters
     ----------
-    sent: str
-    gram_size: int or (int, int)
+    seq : list
+        List to uniquify 
+    
+    Returns:
+    --------
+    list
+        list after removing duplicates while preserving the order of the items
+    """
+
+    seen = {}
+    result = []
+    for item in seq:
+        if item in seen: 
+            continue
+        seen[item] = 1
+        result.append(item)
+    return result
+
+def process_line(line, lowercase = True, not_symbol_pattern = not_symbol_pattern_en, remove_weird_words = False):
+
+    """Splits line into lowercase words based on spaces and non-allowed characters (Carful when you have hyphens or contractions that you want to keep). 
+    Ex: We've had my mother-in-law in the house -> ['we','ve','had','my','mother','in','law','in','the','house'])
+
+    Parameters
+    ----------
+    line: str
+    lowercase: Bool
+    not_symbol_pattern: compiled regular expression
+    remove_weird_words: Bool
+        Whether to remove words containing non-allowed characters (True) or split on each non-allowed character (False). 
+        Default: False
+
+    Returns:
+    --------
+    list
+        list of words/tokens in line
+    """
+
+    if remove_weird_words:
+        words0 = line.strip().lower().split(" ")
+        words = [w for w in words0 if (not not_symbol_pattern.search(w) and w != "")]
+    else:
+        line = not_symbol_pattern.sub(" ", line.strip().lower())
+        words = [w for w in line.split(" ") if w != ""]
+    return words
+
+def extract_word_ngrams(line, ngram_size = 1, not_symbol_pattern = not_symbol_pattern_en, 
+                        remove_weird_words = True, sep_words = "#", sep_ngrams = '_', 
+                        lowercase = True, remove_duplicates = False, randomise_order = False):
+
+    """Generate word ngram cues from a text line. 
+    
+    Parameters
+    ----------
+    line : str
+        String from which to extract the ngrams 
+    ngram_size : int or (int, int)
+        If ngram_size an integer, then only ngrams of size 'ngram_size' are created. 
+        If ngram_size a tuple (a, b), then ngrams of size between a and b are created. 
+        Default: 1
+    not_symbol_pattern : compiled regular expression
+        Regular expression that matches disallowed characters (e.g. punctuation)
+    remove_weird_words: Bool
+        Whether to remove words containing non-allowed characters (True) or split on each non-allowed character (False). 
+        Default: False
+    sep_words: str 
+        Symbole used to seperate the words in a single ngram. Default: "#"
+    sep_ngrams: str 
+        Symbole used to seperate the ngrams. Default: '_'
+    lowercase: Bool
     remove_duplicates: Bool
-    randomize_order  : Bool
+    randomize_order  : Bool    
+    
+    Returns:
+    --------
+    str
+        word n-grams seperated using sep_ngrams
+    """
+
+    # check if ngram size is an integer or range
+    if isinstance(ngram_size, int):
+        n_min = n_max = ngram_size
+    elif len(ngram_size) == 2 and all(isinstance(j, int) for j in ngram_size):
+        n_min, n_max = ngram_size
+    else:
+        raise ValueError("ngram_size value should be an integer or a range of integers")
+
+    # Clean and tokenise the string
+    words = process_line(line, 
+                         lowercase = lowercase, 
+                         not_symbol_pattern = not_symbol_pattern, 
+                         remove_weird_words = remove_weird_words)
+
+    line_ngrams = []
+    for n in range(n_min, n_max + 1):
+        line_ngrams.extend(list(ngrams(words, n)))
+
+    # Remove duplicated ngrams if asked for
+    if remove_duplicates:
+        if randomise_order: # randomise as well if asked for (set changes the order automatically)  
+            line_ngrams = list(set(line_ngrams)) # Remove duplicated ngrams 
+        else: # use list_unique() to preserve cue order 
+            line_ngrams = uniquify_list(line_ngrams)
+    else:        
+        if randomise_order: # Shuffle the ngrams
+            shuffle(line_ngrams)
+
+    return sep_ngrams.join([sep_words.join(ngram) for ngram in line_ngrams])
+
+# # Test
+# line0 = "We've had my mother-in-law in the ho1use "
+# line0 = "We've had my mother-in-law "
+# process_line(line0, remove_weird_words= False)
+# extract_word_ngrams(line0, ngram_size = 2, remove_weird_words= False)
+
+def extract_letter_ngrams(line, ngram_size = 1, not_symbol_pattern = not_symbol_pattern_en, 
+                          remove_weird_words = False, sep_ngrams = '_', mark_word_boundary = True, 
+                          lowercase = True, remove_duplicates = False, randomise_order = False):
+
+    """Generate letter ngrams from a text line.
+
+    Parameters
+    ----------
+    line: str
+    gram_size: int or (int, int)
+    remove_weird_words: Bool
+        Whether to remove words containing non-allowed characters (True) or split on each non-allowed character (False). 
+        Default: False
+    mark_word_boundary: Bool
+    lowercase: Bool
+    remove_duplicates: Bool
+    randomize_order  : Bool 
+
+    Returns:
+    --------
+    str
+        letter n-grams (n-graphs) seperated using sep_ngrams
     """
     
-    # gram size could be integer or range
-    try:
-        min_n, max_n = gram_size
-    except TypeError:
-        min_n = max_n = gram_size
+    # check if ngram size is an integer or range
+    if isinstance(ngram_size, int):
+        n_min = n_max = ngram_size
+    elif len(ngram_size) == 2 and all(isinstance(j, int) for j in ngram_size):
+        n_min, n_max = ngram_size
+    else:
+        raise ValueError("ngram_size value should be an integer or a range of integers")
 
-    tokens = sent.lower().split()
+    # Clean and tokenise the string
+    words = process_line(line, 
+                         lowercase = lowercase, 
+                         not_symbol_pattern = not_symbol_pattern, 
+                         remove_weird_words = remove_weird_words)
 
-    if randomize_order:
-        shuffle(tokens)
+    # Initialise the list the will contain the letter n-grams
+    line_ngrams = list()
 
-    string = u"#" + u"#".join(tokens) + u"#"
-    cues = list()
-    for n in range(min_n, max_n + 1):
-        cues += [string[i:i + n] for i in range(len(string) - n + 1)]
+    if mark_word_boundary:
+        line_processed = "#" + "#".join(words) + "#"
+        for n in range(n_min, n_max + 1):
+            line_ngrams.extend([line_processed[i:i + n] for i in range(len(line_processed) - n + 1)])
+        # Remove word boundaries (#) if uni-grams requested 
+        if n_min == 1:
+            line_ngrams = [ngram for ngram in line_ngrams if ngram != "#"]
+    else:
+        for word in words:
+            for n in range(n_min, n_max + 1):
+                line_ngrams.extend([word[i:i + n] for i in range(len(word) - n + 1)])
 
-    if gram_size == 1:
-        cues = [x for x in cues if x != u"#"]
+    # Remove duplicated ngrams if asked for
     if remove_duplicates:
-        cues = set(cues)
+        if randomise_order: # randomise as well if asked for (set changes the order automatically)  
+            line_ngrams = list(set(line_ngrams)) # Remove duplicated ngrams 
+        else: # use list_unique() to preserve ngram order 
+            line_ngrams = uniquify_list(line_ngrams)
+    else:        
+        if randomise_order: # Shuffle the ngrams
+            shuffle(line_ngrams)
 
-    cues = u"_".join(cues)
+    #ngrams = "_".join(ngrams)
+
+    return sep_ngrams.join(line_ngrams)
+
+# # Test
+# line0 = "We've had my mother-in-law "
+# process_line(line0)
+# extract_letter_ngrams(line0, ngram_size = 2)
+
+def extract_cues(line, ngram_base = 'words', ngram_size = 1, not_symbol_pattern = not_symbol_pattern_en, 
+                 remove_weird_words = False, sep_words = "#", sep_ngrams = '_', mark_word_boundary = True, 
+                 lowercase = True, remove_duplicates = False, randomise_order = False):
+
+    """Prepare cues (word or letter n-grams) based on a text line.
+
+    Parameters
+    ----------
+    line : str
+        String from which to extract the ngrams 
+    ngram_base: str
+        If ngram_base = 'words', then word n-gram cues are used
+        If ngram_base = 'letters', then letter n-gram cues are used
+    ngram_size : int or (int, int)
+        If ngram_size an integer, then only ngrams of size 'ngram_size' are created. 
+        If ngram_size a tuple (a, b), then ngrams of size between a and b are created. 
+        Default: 1
+    not_symbol_pattern : compiled regular expression
+        Regular expression that matches disallowed characters (e.g. punctuation)
+    remove_weird_words: Bool
+        Whether to remove words containing non-allowed characters (True) or split on each non-allowed character (False). 
+        Default: False
+    sep_words: str 
+        Symbole used to seperate the words in a single ngram (relevant only if ngram_base == 'words'). Default: "#"
+    sep_ngrams: str 
+        Symbole used to seperate the ngrams. Default: '_'
+    mark_word_boundary: Bool 
+        (relevant only if ngram_base == 'words')
+    lowercase: Bool
+    remove_duplicates: Bool
+    randomize_order  : Bool    
+    
+    Returns:
+    --------
+    str
+        n-gram cues seperated with sep_ngrams
+    """
+
+    # Check cue type
+    if ngram_base == 'words':
+        cues = extract_word_ngrams(line = line,
+                                   ngram_size = ngram_size, 
+                                   not_symbol_pattern = not_symbol_pattern, 
+                                   remove_weird_words = remove_weird_words, 
+                                   sep_words = sep_words,
+                                   sep_ngrams = sep_ngrams,
+                                   lowercase = lowercase,
+                                   remove_duplicates = remove_duplicates, 
+                                   randomise_order = randomise_order)
+    elif ngram_base == 'letters':
+        cues = extract_letter_ngrams(line = line, 
+                                     ngram_size = ngram_size, 
+                                     not_symbol_pattern = not_symbol_pattern, 
+                                     remove_weird_words = remove_weird_words, 
+                                     sep_ngrams = sep_ngrams, 
+                                     mark_word_boundary = mark_word_boundary, 
+                                     lowercase = lowercase, 
+                                     remove_duplicates = remove_duplicates, 
+                                     randomise_order = randomise_order)
+    else:
+        raise ValueError("ngram_base should be either 'words' or 'letters'")
+
+    # outcomes_list = process_line(line = line, 
+    #                         lowercase = lowercase, 
+    #                         not_symbol_pattern = not_symbol_pattern, 
+    #                         remove_weird_words = remove_weird_words) 
+    # outcomes = "_".join(outcomes_list)
+
     return cues
+
+# # Test
+# line0 = "We've had my mother-in-law "
+# process_line(line0)
+# extract_cues(line0, ngram_base = 'letters', ngram_size = (1,2))
+
+def extract_events(line, ngram_base = 'words', ngram_size = 1, outcomes_provided = True, 
+                   not_symbol_pattern = not_symbol_pattern_en, remove_weird_words = False, 
+                   sep_words = "#", sep_ngrams = '_', mark_word_boundary = True, 
+                   lowercase = True, remove_duplicates = False, randomise_order = False):
+
+    """Prepare events (cues + outcomes) based on a text line. Outcomes are either provided or 
+       generated as words in the line
+
+    Parameters
+    ----------
+    line : str
+        String from which to extract the ngram cues and outcomes. If the outcomes are provided,
+        then they should be seperated with sep_ngrams (usually '_'). input text from which the 
+        cues are extracted and the outcomes should be seperated with a tab (e.g. 
+        'she went back home\tpast.simple' ) 
+    ngram_base: str
+        If ngram_base = 'words', then word n-gram cues are used
+        If ngram_base = 'letters', then letter n-gram cues are used
+    ngram_size : int or (int, int)
+        If ngram_size an integer, then only ngrams of size 'ngram_size' are created. 
+        If ngram_size a tuple (a, b), then ngrams of size between a and b are created. 
+        Default: 1
+    outcomes_provided: Bool
+        If True, outcomes are copied to make the event 
+        If False, outcomes are the words that appear in the line 
+    not_symbol_pattern : compiled regular expression
+        Regular expression that matches disallowed characters (e.g. punctuation)
+    remove_weird_words: Bool
+        Whether to remove words containing non-allowed characters (True) or split on each non-allowed character (False). 
+        Default: False
+    sep_words: str 
+        Symbole used to seperate the words in a single ngram (relevant only if ngram_base == 'words'). Default: "#"
+    sep_ngrams: str 
+        Symbole used to seperate the ngrams. Default: '_'
+    mark_word_boundary: Bool 
+        (relevant only if ngram_base == 'words')
+    lowercase: Bool
+    remove_duplicates: Bool
+    randomize_order  : Bool    
+    
+    Returns:
+    --------
+    tuple
+        pair of seq of cues and outcomes, each seperated with sep_ngrams
+    """
+
+    # Check whether outcomes are provided or not
+    if outcomes_provided:
+        try:
+            cue_input, outcomes = line.split('\t')
+        except:
+            raise ValueError("Text line doesn't contain 2 enteries for cue input and outcomes")
+    else:
+        cue_input = line
+        outcomes_list = process_line(line = line, 
+                                     lowercase = lowercase, 
+                                     not_symbol_pattern = not_symbol_pattern, 
+                                     remove_weird_words = remove_weird_words) 
+        outcomes = "_".join(outcomes_list)
+
+    cues = extract_cues(line = cue_input,
+                        ngram_base = ngram_base, 
+                        ngram_size = ngram_size,
+                        not_symbol_pattern = not_symbol_pattern, 
+                        remove_weird_words = remove_weird_words, 
+                        sep_words = sep_words,
+                        sep_ngrams = sep_ngrams,
+                        mark_word_boundary = mark_word_boundary,
+                        lowercase = lowercase,
+                        remove_duplicates = remove_duplicates, 
+                        randomise_order = randomise_order)
+
+    return (cues, outcomes)
+
+# # Test 1
+# line0 = "she went back home\tpast.simple"
+# extract_events(line0, ngram_base = 'letters', ngram_size = (1,2), outcomes_provided = True)
+
+# # Test 2
+# line1 = "she went back home"
+# extract_events(line1, ngram_base = 'letters', ngram_size = (1,2), outcomes_provided = False)
+
+def chunk(iterable, chunksize):
+    
+    """Returns lazy iterator that yields chunks from iterable.
+    """
+
+    iterator = iter(iterable)
+    return iter(lambda: list(islice(iterator, chunksize)), [])
+
+def prepare_events_generator(lines, ngram_base, ngram_size, outcomes_provided, 
+                             not_symbol_pattern, remove_weird_words, sep_words, 
+                             sep_ngrams, mark_word_boundary, lowercase, 
+                             remove_duplicates, randomise_order, num_threads, 
+                             chunksize):
+
+    """Creates a generator that prepare events in parallel from a sequence of lines
+
+    Parameters
+    ----------
+    lines : str
+        Lines from which to extract the ngram cues and outcomes. If the outcomes are provided,
+        then they should be seperated with sep_ngrams (usually '_'). input text from which the 
+        cues are extracted and the outcomes should be seperated with a tab (e.g. 
+        'she went back home\tpast.simple' ) 
+    ngram_base: str
+        If ngram_base = 'words', then word n-gram cues are used
+        If ngram_base = 'letters', then letter n-gram cues are used
+    ngram_size : int or (int, int)
+        If ngram_size an integer, then only ngrams of size 'ngram_size' are created. 
+        If ngram_size a tuple (a, b), then ngrams of size between a and b are created. 
+        Default: 1
+    outcomes_provided: Bool
+        If True, outcomes are copied to make the event 
+        If False, outcomes are the words that appear in the line 
+    not_symbol_pattern : compiled regular expression
+        Regular expression that matches disallowed characters (e.g. punctuation)
+    remove_weird_words: Bool
+        Whether to remove words containing non-allowed characters (True) or split on each non-allowed character (False). 
+        Default: False
+    sep_words: str 
+        Symbole used to seperate the words in a single ngram (relevant only if ngram_base == 'words'). Default: "#"
+    sep_ngrams: str 
+        Symbole used to seperate the ngrams. Default: '_'
+    mark_word_boundary: Bool 
+        (relevant only if ngram_base == 'words')
+    lowercase: Bool
+    remove_duplicates: Bool
+    randomize_order  : Bool 
+    num_threads : int
+        Number of parallel processes to use (should be <= number of threads)
+    chunksize : int
+        Number of lines each process will work on in batches
+        (Higher values increase memory consumption, but decrease processing
+        time, with diminishing returns)   
+    """
+
+    # Fills arguments for later use with .imap
+    _extract_events = partial(extract_events,
+                              ngram_base = ngram_base, 
+                              ngram_size = ngram_size, 
+                              outcomes_provided = outcomes_provided, 
+                              not_symbol_pattern = not_symbol_pattern, 
+                              remove_weird_words = remove_weird_words, 
+                              sep_words = sep_words, 
+                              sep_ngrams = sep_ngrams, 
+                              mark_word_boundary = mark_word_boundary, 
+                              lowercase = lowercase, 
+                              remove_duplicates = remove_duplicates, 
+                              randomise_order = randomise_order)
+
+    with Pool(num_threads) as pool:
+        for _chunk in chunk(lines, chunksize * num_threads):
+            yield from pool.imap(_extract_events, _chunk, # imap gives the results one at a time (# from map)
+                                 chunksize = chunksize)
+
+def prepare_event_file(data, header = False, event_file_path = None, 
+                       ngram_base = 'words', ngram_size = 1, 
+                       outcomes_provided = True, 
+                       not_symbol_pattern = not_symbol_pattern_en,
+                       remove_weird_words = False, sep_words = "#", 
+                       sep_ngrams = '_', mark_word_boundary = True, 
+                       lowercase = True, remove_duplicates = False, 
+                       randomise_order = False, num_threads = 1, 
+                       chunksize = 100000, verbose = 0):
+
+    """Prepare event file from a text file or dataframe.
+
+    Parameters
+    ----------
+    data : dataframe or str
+        dataframe or path to the txt file containing textual data to extract events from.
+        If it is a dataframe, it should contains two columns: the first is the input text to
+        be transformed into cues and the second column should contain the sequence of outcomes
+    header: Bool
+        Relevant only if data is a path. 
+        - if header = True, then the the file has a header to be skipped.
+        - if header = False, then the the file doesn't have a header.
+    event_file_path : str
+        Relevant only if data is a path. In such as case, it is the path of the event file 
+        that will be prepare if data is a path
+    ngram_base: str
+        If ngram_base = 'words', then word n-gram cues are used
+        If ngram_base = 'letters', then letter n-gram cues are used
+    ngram_size : int or (int, int)
+        If ngram_size an integer, then only ngrams of size 'ngram_size' are created. 
+        If ngram_size a tuple (a, b), then ngrams of size between a and b are created. 
+        Default: 1
+    not_symbol_pattern : compiled regular expression
+        Regular expression that matches disallowed characters (e.g. punctuation)
+    remove_weird_words: Bool
+        Whether to remove words containing non-allowed characters (True) or split on each non-allowed character (False). 
+        Default: False
+    sep_words: str 
+        Symbole used to seperate the words in a single ngram (relevant only if ngram_base == 'words'). Default: "#"
+    sep_ngrams: str 
+        Symbole used to seperate the ngrams. Default: '_'
+    mark_word_boundary: Bool 
+        (relevant only if ngram_base == 'words')
+    lowercase: Bool
+    remove_duplicates: Bool
+    randomize_order  : Bool    
+    num_threads: int
+        maximum number of processes to use - it should be >= 1. Default: 1
+    chunksize : int
+        Number of lines each process will work on in batches
+        (Higher values increase memory consumption, but decrease processing
+        time, with diminishing returns) 
+    
+    Returns:
+    --------
+    None
+        save a .gz event file
+    """
+
+    # Check data type
+    if isinstance(data, str): # If the input data is a text file
+
+        with gzip.open(event_file_path, "wt", encoding='utf-8') as outfile:  
+            outfile.write("cues\toutcomes\n")
+            with open(data, encoding='utf-8') as infile:
+                if header:
+                    next(infile) # skip header
+                results = prepare_events_generator(lines = infile, 
+                                                ngram_base = ngram_base, 
+                                                ngram_size = ngram_size, 
+                                                outcomes_provided = outcomes_provided, 
+                                                not_symbol_pattern = not_symbol_pattern, 
+                                                remove_weird_words = remove_weird_words, 
+                                                sep_words = sep_words,
+                                                sep_ngrams = sep_ngrams,
+                                                mark_word_boundary = mark_word_boundary, 
+                                                lowercase = lowercase, 
+                                                remove_duplicates = remove_duplicates, 
+                                                randomise_order = randomise_order, 
+                                                num_threads = num_threads, 
+                                                chunksize = chunksize)
+                #list(results)
+                for i, event in enumerate(results):
+                    cues, outcomes = event
+                    outfile.write(f"{cues}\t{outcomes}\n")   
+                    if verbose == 1 and i % 100000 == 0:
+                        sys.stdout.write('.')
+                        sys.stdout.flush()
+
+    elif isinstance(data, pd.DataFrame): # If the input data is a dataframe
+        raise NotImplementedError('data as a dataframe is not implemented yet.') 
+    else:
+        raise ValueError("data should be either a path to a txt file or a dataframe")
+
 
 ################
 # Create epochs 

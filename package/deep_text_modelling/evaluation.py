@@ -5,11 +5,10 @@ import pandas as pd
 import shutil
 from keras import backend as K
 import matplotlib.pyplot as plt
-from itertools import islice
 from pyndl import io
 from pyndl.preprocess import filter_event_file
 
-from deep_text_modelling.preprocessing import IndexedFile
+from deep_text_modelling.preprocessing import IndexedFile, chunk
 
 def score_given_metric(y_true, y_pred, metric):
 
@@ -484,14 +483,6 @@ def activations_to_predictions(activations):
             argmax_j = np.random.choice(maxes, 1, replace=False).squeeze()
         y_pred.append(argmax_j)   
     return y_pred
-
-def chunk(iterable, chunksize):
-    
-    """Returns lazy iterator that yields chunks from iterable.
-    """
-
-    iterator = iter(iterable)
-    return iter(lambda: list(islice(iterator, chunksize)), [])
 
 def predict_outcomes_NDL(model, data_test, cue_index = None, outcome_index = None, temp_dir = None, 
                          remove_temp_dir = True, num_threads = 1, chunksize = None):
