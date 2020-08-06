@@ -1,9 +1,13 @@
 ### Import necessary packages
 import itertools
+from itertools import chain
 import csv 
 import gc
 import sys
 import numpy as np
+from numpy import zeros, matrix
+from numba import njit, prange
+from scipy.sparse import coo_matrix as sparse
 import xarray as xr
 import pandas as pd
 import random 
@@ -148,7 +152,43 @@ def seq_to_onehot_2darray(seq, index_system, N_tokens, max_len):
     onehot_array = onehot_array[:, 1:]
 
     return onehot_array
-                                         
+
+def events_to_onehot_mat(events_df):
+
+    """ Converts an event dataframe into one-hot encoding matrices (for W-H training)
+    DEVELOPED BY: Petar Milin & Michael Croucher
+    ----------
+    events_df: dataframe containing events
+    """
+    
+    events_df = events_df.applymap(lambda x : x.split('_'))
+    
+    # Extarct set of cues and outcomes
+    sortedUniqueCues = sorted(Counter(
+                list(chain.from_iterable(events_df['Cues'].to_list()))).keys())
+    SortedUniqueOutcomes = sorted(Counter(
+                list(chain.from_iterable(events_df['Outcomes'].to_list()))).keys())
+    
+    # Get num of cues, outcomes and events
+    numUniqueCues = len(sortedUniqueCues)
+    numUniqueOutcomes = len(SortedUniqueOutcomes)
+    numEvents = events_df.shape[0]
+    
+    # In initialise the n-hot encoding matrices for the cues and outcomes
+    cueMatrix = zeros((numEvents, numUniqueCues))
+    outcomeMatrix = zeros((numEvents, numUniqueOutcomes))
+    
+    # Fill in the one-hot encoding matrices
+    for idx, row in events_df.iterrows():
+        for cue in row['Cues']:
+            cueIndex = sortedUniqueCues.index(cue)
+            cueMatrix[idx, cueIndex] = 1
+        for outcome in row['Outcomes']:
+            outcomeIndex = SortedUniqueOutcomes.index(outcome)
+            outcomeMatrix[idx, outcomeIndex] = 1
+    
+    return (cueMatrix, outcomeMatrix)
+
 ###############################
 # Feedforward neural networks
 ###############################
@@ -2106,6 +2146,465 @@ def grid_search_NDL(data_train, data_valid, params, prop_grid,
         except OSError as e:
             print("Error: %s : %s" % (temp_dir0, e.strerror))
 
+####################
+# Widrow-Hoff model
+####################
+
+class WHmodel():
+
+    """ Class that contains the training results after W-H training (weights, activations and performance measures)
+
+    Attributes
+    ----------
+    weights: xarray.DataArray
+        matrix of association weights
+
+    Returns
+    -------
+    class object
+
+    """
+
+    def __init__(self, weights):
+        'Initialization'
+        self.weights = weights
+
+@njit(parallel=True, fastmath=True)
+def update_WH(D, spdata, sprow, spcol, Alpha):
+    
+    """ Perform as single Widrow-Hoff update 
+    DEVELOPED BY: Petar Milin & Michael Croucher
+    """
+    for index in prange(spdata.size):
+        i = sprow[index]
+        j = spcol[index]
+        D[i,j] = D[i,j] + spdata[index] * Alpha
+
+def widrow_hoff_algo(cues, outcomes, weights, lr, normalize=False, algorithm='original'):
+
+    """
+    Updating weights for Widrow-Hoff / Delta / Least Mean Square (LMS) Rule
+    DEVELOPED BY: Petar Milin & Michael Croucher
+    ----------
+    cues: numpy matrix
+        input learning cues
+    outcomes: numpy matrix
+        outcomes (targets, teachers, criteria)
+    weights : None or numpy matrix
+        initial weights to start with. If weights = None, weights are initialised from 0.
+    lr: int
+        rate of learning 
+    normalize: Bool 
+        if True (or 1) normalisation is applied
+    algorithm: str
+        - if 'original' no sparse conversion is carried out
+        - if 'sparse' one-hot encoding matrices converted to sparse matrices to speed up 
+          computations. Relevant only if working with nhot encoded inputs
+    """
+    
+    numUniqueCues = cues.shape[1]
+    numUniqueOutcomes = outcomes.shape[1]
+    numLearningTrials = cues.shape[0]
+    
+    if normalize:
+        lr = float(lr) / float(numLearningTrials)
+    
+    W = weights
+
+    if algorithm == 'original':
+        if W == None:
+            W = matrix(zeros((numUniqueCues, numUniqueOutcomes)))  
+        for j in range(numLearningTrials):
+            T = matrix(outcomes[j,:])
+            C = matrix(cues[j,:])
+            Delta = lr * C.T * (T - (C * W))
+            W = W + Delta
+    elif algorithm == 'sparse':
+        if W == None: 
+            W = np.zeros((numUniqueCues, numUniqueOutcomes))
+        for j in range(numLearningTrials):
+            Ts = sparse(outcomes[j,:])
+            C = cues[j,:]
+            # Compute C * W 
+            CW = np.sum(W[C.astype(np.bool)], 0) # This is only true when C is a binary vector
+            # Convert to sparse to make computations faster
+            Cs = sparse(C)
+            CWs = sparse(CW)
+            # Compute delta without the lr term; We multiply by lr in the next step
+            Deltas = Cs.T * (Ts - CWs)
+            # tocoo format is easier to deal with
+            Deltas = Deltas.tocoo()
+            #W = W + Deltas * lr
+            update_WH(W, Deltas.data, Deltas.row, Deltas.col, lr)              
+    else:
+        print('Unsupported algorithm')
+
+    return(W)
+
+def train_WH(data_train, data_valid, cue_index = None, outcome_index = None, 
+             normalize = False, algorithm = 'original', shuffle_epoch = False, 
+             num_threads = 1, chunksize = None, verbose = 1, 
+             temp_dir = None, remove_temp_dir = True,
+             metrics = ['accuracy', 'precision', 'recall', 'f1score'], 
+             metric_average = 'macro',
+             params = {'epochs': 1, # number of iterations over the full set 
+                       'lr': 0.0001}):
+
+    """ Train a native discriminative learning model
+
+    Parameters
+    ----------
+    data_train: dataframe or str
+        dataframe or path to the file containing training data
+    data_valid: class or dataframe
+        dataframe or path to the file containing validation data
+    cue_index: dict or None
+        If None, all cues in the event file are used. Otherwise a dictionary that maps cues to indices should 
+        be given. The dictionary should include only the cues to keep in the data. Default: None
+    outcome_index: dict or None
+        If None, all outcomes in the event file are used. Otherwise a dictionary that maps outcomes to indices should 
+        be given. The dictionary should include only the outcomes to keep in the data. Default: None
+    normalize: Bool 
+        if True (or 1) normalisation is applied
+    algorithm: str
+        - if 'original' no sparse conversion is carried out
+        - if 'sparse' one-hot encoding matrices converted to sparse matrices to speed up 
+          computations. Relevant only if working with nhot encoded inputs
+    shuffle_epoch: Boolean
+        whether to shuffle the data after every epoch (not supported for now). Defult: False
+    num_threads: int
+        maximum number of processes to use for computing activations - it should be >= 1. Default: 1
+    chunksize : int or None
+        number of lines to use for computing the accuracy (set if the data is very large and/or there is a huge number 
+        of outcomes - e.g. chunksize = 10000). This is done through the computation of the activation matrix for these 
+        lines. If None, all lines will be used. Default: None
+    verbose: int (0, 1, or 2)
+        verbosity mode. 0 = silent, 1 = one line per epoch, 2 = detailed. Default: 1
+    temp_dir: str
+        directory where to store temporary files while training NDL. Default: None (will create a folder 
+        'TEMP_TRAIN_DIRECTORY' in the current working directory    
+    remove_temp_dir: Boolean
+        whether or not to remove the temporary directory if one was automatically created. Default: True
+    metrics: list
+        for now only ['accuracy', 'precision', 'recall', 'f1score'] is accepted
+    metric_average: str
+        offer almost the same options as the 'average' parameter in sklearn's precision_score, 
+        recall_score and f1_score functions ('binary' not considered), that is: 
+        'micro': calculate metrics globally by counting the total true positives, 
+                 false negatives and false positives
+        'macro': calculate metrics for each label, and find their unweighted mean. 
+                 This does not take label imbalance into account
+        'weighted': calculate metrics for each label, and find their average weighted 
+                    by support (the number of true instances for each label).
+        'samples': calculate metrics for each instance, and find their average (differs 
+                   from accuracy_score only in multilabel classification)
+    params: dict
+        model parameters:
+        'epochs'
+        'lr'
+
+    Returns
+    -------
+    tuple
+        fit history and NDL_model class object (stores the weight and activation matrices) 
+    """
+
+    from deep_text_modelling.evaluation import activations_to_predictions, predict_outcomes_NDL
+    from deep_text_modelling.preprocessing import df_to_gz
+
+    ### check verbose and convert to NDL verbose
+    if verbose in (0,1):
+        verbose_n = False
+    elif verbose == 2:
+        verbose_n = True
+    else:
+        raise ValueError("incorrect verbose value: choose an integer bewteen 0 and 2")
+
+    # Create a temporary directory if not provided
+    if not temp_dir:
+        temp_dir0 = os.path.join(os.getcwd(), 'TEMP_TRAIN_DIRECTORY')
+        # Add warning if the creation of a temporary directory fails 
+        # (e.g. folder with the same name already existing)
+        try:
+            os.mkdir(temp_dir0) 
+        except OSError:
+            print("Creation of a temporary directory %s failed. This could be because ", 
+                  "a folder with the same name already exists or you don't have the ", 
+                  "required admin rights on the computer)." % temp_dir0)
+    else:
+        temp_dir0 = temp_dir
+
+    ### Path to the train event file
+    if isinstance(data_train, str):     
+        events_train_path = data_train
+    elif isinstance(data_train, pd.DataFrame):
+        if verbose ==2:
+            _ = sys.stdout.write('\n*** Conversion of the training event-file into .gz\n\n')  
+            sys.stdout.flush()
+        start_conv_train = time.time()
+        events_train_path = os.path.join(temp_dir0, 'unfiltered_events_train.gz')
+        df_to_gz(data = data_train, gz_outfile = events_train_path)
+        if verbose ==2:
+            _ = sys.stdout.write('Conversion completed in %.0fs\n\n' \
+                                % (time.time() - start_conv_train))
+            sys.stdout.flush()  
+    else:
+        raise ValueError("data_train should be either a path to an event file or a dataframe")
+
+    ### Path to the validation event file
+    if isinstance(data_valid, str):     
+        events_valid_path = data_valid
+    elif isinstance(data_valid, pd.DataFrame):
+        if verbose ==2:
+            _ = sys.stdout.write('*** Conversion of the validation event-file into .gz\n\n')  
+            sys.stdout.flush()
+        start_conv_valid = time.time()
+        events_valid_path = os.path.join(temp_dir0, 'unfiltered_events_valid.gz')
+        df_to_gz(data = data_valid, gz_outfile = events_valid_path)
+        if verbose ==2:
+            _ = sys.stdout.write('Conversion completed in %.0fs\n\n' \
+                                % (time.time() - start_conv_valid))
+            sys.stdout.flush()  
+    else:
+        raise ValueError("data_valid should be either a path to an event file or a dataframe") 
+
+    ### Filter the event files by retaining only the cues and outcomes that are in the index system (e.g. most frequent tokens) 
+    ### if these index systems are provided by the user. Otherwise, use all cues and/or outcomes
+    if cue_index or outcome_index: # Filtering only if an index file is provided
+
+        # Paths to the filtered files
+        filtered_events_train_path = os.path.join(temp_dir0, 'filtered_events_train.gz')  
+        filtered_events_valid_path = os.path.join(temp_dir0, 'filtered_events_valid.gz')  
+
+        # Cues
+        if cue_index:
+            cues_to_keep = [cue for cue in cue_index.keys()]
+        else:
+            cues_to_keep = 'all'
+        # Outcomes
+        if outcome_index:
+            outcomes_to_keep = [outcome for outcome in outcome_index.keys()]
+        else:
+            outcomes_to_keep = 'all'
+
+        # Train set 
+        if verbose == 2:
+            _ = sys.stdout.write('*** Creation of the filtered training event file\n\n')  
+            _ = sys.stdout.write('Progress (each dot represents 100k events): ')
+            sys.stdout.flush()
+            start_filt_train = time.time()
+        filter_event_file(events_train_path,
+                          filtered_events_train_path,
+                          number_of_processes = num_threads,
+                          keep_cues = cues_to_keep,
+                          keep_outcomes = outcomes_to_keep,
+                          verbose = verbose_n)  
+        if verbose == 2:
+            _ = sys.stdout.write('\n\nFiltering completed in %.0fs\n\n' \
+                                % (time.time() - start_filt_train))
+            sys.stdout.flush()
+
+        # Validation set 
+        if verbose == 2:
+            _ = sys.stdout.write('*** Creation of the filtered validation event file\n\n') 
+            _ = sys.stdout.write('Progress (each dot represents 100k events): ') 
+            sys.stdout.flush()
+            start_filt_valid = time.time() 
+        filter_event_file(events_valid_path,
+                          filtered_events_valid_path,
+                          number_of_processes = num_threads,
+                          keep_cues = cues_to_keep,
+                          keep_outcomes = outcomes_to_keep,
+                          verbose = verbose_n) 
+        if verbose == 2:
+            _ = sys.stdout.write('\n\nFiltering completed in %.0fs\n\n' \
+                                % (time.time() - start_filt_valid))
+            sys.stdout.flush()
+
+    else:
+        # Paths to the filtered files
+        filtered_events_train_path = events_train_path  
+        filtered_events_valid_path = events_valid_path 
+
+    if verbose == 2:
+        _ = sys.stdout.write('*** Training\n\n')  
+        sys.stdout.flush()
+    
+    start_learn = time.time() 
+
+    # Initialise the weight matrix
+    weights = None
+
+    # Initialise the lists where we will store the performance scores in each epoch for the different metrics
+    # train
+    acc_hist = []
+    precision_hist = []
+    recall_hist = []
+    f1score_hist = []
+
+    # valid
+    val_acc_hist = []
+    val_precision_hist = []
+    val_recall_hist = []
+    val_f1score_hist = []
+
+    ### True outcomes 
+    if not shuffle_epoch: # Extract the train y-values once here only if no shuffling is needed
+        # tain set 
+        events_train_df = pd.read_csv(filtered_events_train_path, header = 0, sep='\t', quotechar='"', usecols = ['outcomes'])
+        y_train_true = events_train_df['outcomes'].tolist()    
+        del events_train_df
+    # validation set 
+    events_valid_df = pd.read_csv(filtered_events_valid_path, header = 0, sep='\t', quotechar='"', usecols = ['outcomes'])
+    y_valid_true = events_valid_df['outcomes'].tolist()
+    del events_valid_df
+    
+    # Train W-H for the chosen number of epochs. Each time save and print the metric scores
+    for j in range(1, (1+params['epochs'])):
+
+        if ((j == 1) or (not np.isnan(weights).any())): # if no nan values in the weight matrix (i.e. no divergence problem):
+
+            if verbose != 0:
+                sys.stdout.write('Epoch %d/%d\n' % (j, params['epochs']))
+                sys.stdout.flush()
+
+            epoch_no_diverg = j # Keep track of the last epoch without a divergence problem
+            
+            start_weight = time.time()
+            # Convert to one-hot encoding matrices
+            filtered_events_train_df = pd.read_csv(filtered_events_train_path, header = 0, sep='\t', quotechar='"')
+            cuesMat, outcomesMat = events_to_onehot_mat(filtered_events_train_df)
+            # Train W-H to get the weight matrix
+            weights = widrow_hoff_algo(cues = cuesMat, 
+                                       outcomes = outcomesMat, 
+                                       weights = weights,
+                                       lr = params['lr'], 
+                                       normalize = normalize, 
+                                       algorithm = algorithm)
+
+            if verbose == 2:
+                sys.stdout.write(' - weight mat in %.0fs\n' % ((time.time() - start_weight)))
+                sys.stdout.flush()
+
+            # Predicted outcomes from the activations
+            start_pred_train = time.time()
+            y_train_pred = predict_outcomes_NDL(model = WHmodel(weights),  
+                                                data_test = filtered_events_train_path,
+                                                temp_dir = temp_dir0,
+                                                remove_temp_dir = False,
+                                                chunksize = chunksize, 
+                                                num_threads = 1) # faster to use 1 for computing the activations
+            if verbose == 2:
+                sys.stdout.write(' - train pred in %.0fs\n' % ((time.time() - start_pred_train)))
+                sys.stdout.flush()
+            start_pred_valid = time.time()
+            y_valid_pred = predict_outcomes_NDL(model = WHmodel(weights), 
+                                                data_test = filtered_events_valid_path, 
+                                                temp_dir = temp_dir0,
+                                                remove_temp_dir = False,
+                                                chunksize = chunksize, 
+                                                num_threads = 1) # faster to use 1 for computing the activations
+            if verbose == 2:
+                sys.stdout.write(' - valid pred in %.0fs\n' % ((time.time() - start_pred_valid)))
+                sys.stdout.flush()
+
+            ### True outcomes 
+            if shuffle_epoch: # Extract the true y-values each time if the train data is shuffled 
+                # tain set 
+                events_train_df = pd.read_csv(filtered_events_train_path, header = 0, sep='\t', quotechar='"', usecols = ['outcomes'])
+                y_train_true = events_train_df['outcomes'].tolist()    
+                del events_train_df
+            
+            # Compute performance scores for the different metrics
+            # accuracy
+            acc_j = accuracy_score(y_train_true, y_train_pred)
+            acc_hist.append(acc_j)
+            val_acc_j = accuracy_score(y_valid_true, y_valid_pred)
+            val_acc_hist.append(val_acc_j)
+
+            # precision
+            precision_j = precision_score(y_train_true, y_train_pred, average = metric_average)
+            precision_hist.append(precision_j)
+            val_precision_j = precision_score(y_valid_true, y_valid_pred, average = metric_average)
+            val_precision_hist.append(val_precision_j)
+
+            # recall
+            recall_j = recall_score(y_train_true, y_train_pred, average = metric_average)
+            recall_hist.append(recall_j)
+            val_recall_j = recall_score(y_valid_true, y_valid_pred, average = metric_average)
+            val_recall_hist.append(val_recall_j)
+
+            # F1-score
+            f1score_j = f1_score(y_train_true, y_train_pred, average = metric_average)
+            f1score_hist.append(f1score_j)
+            val_f1score_j = f1_score(y_valid_true, y_valid_pred, average = metric_average)
+            val_f1score_hist.append(val_f1score_j)  
+
+        else: # Measures will be set to np.nan if learning has diverged and weights won't be updated
+
+            # accuracy
+            acc_j = np.nan
+            acc_hist.append(acc_j)
+            val_acc_j = np.nan
+            val_acc_hist.append(val_acc_j)
+
+            # precision
+            precision_j = np.nan
+            precision_hist.append(precision_j)
+            val_precision_j = np.nan
+            val_precision_hist.append(val_precision_j)
+
+            # recall
+            recall_j = np.nan
+            recall_hist.append(recall_j)
+            val_recall_j = np.nan
+            val_recall_hist.append(val_recall_j)
+
+            # F1-score
+            f1score_j = np.nan
+            f1score_hist.append(f1score_j)
+            val_f1score_j = np.nan
+            val_f1score_hist.append(val_f1score_j)  
+
+        # Display progress message  
+        if verbose != 0:
+            sys.stdout.write(' - %.0fs - acc: %.4f - val_acc: %.4f\n' % ((time.time() - start_weight), acc_j, val_acc_j))
+            sys.stdout.flush()
+
+        # Garbage collection after each iteration
+        gc.collect()
+
+    if verbose == 2:
+        _ = sys.stdout.write('\nTraining completed in %.0fs\n' \
+                            % (time.time() - start_learn))
+        sys.stdout.flush()
+                      
+    ### Model object
+    model = NDLmodel(weights)
+
+    if (j>1 and np.isnan(weights).any()): # display a message to notify about a divergence problem:
+        sys.stdout.write('Warning: learning diverged in epoch %d!!!\n\n' % ((epoch_no_diverg+1)))
+        sys.stdout.flush()
+
+    ### Fit history object
+    hist = {'accuracy': acc_hist,
+            'precision': precision_hist,
+            'recall': recall_hist,
+            'f1score': f1score_hist,
+            'val_accuracy': val_acc_hist,
+            'val_precision': val_precision_hist,
+            'val_recall': val_recall_hist,
+            'val_f1score': val_f1score_hist
+            }
+
+    ### Remove temporary directory if it was automatically created and the option was selected by the user
+    if remove_temp_dir and not temp_dir:
+        try:
+            shutil.rmtree(temp_dir0)
+        except OSError as e:
+            print("Error: %s : %s" % (temp_dir0, e.strerror))
+   
+    return hist, model
 
 ###################################
 # One function to train all models
