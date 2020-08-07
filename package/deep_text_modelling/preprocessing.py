@@ -404,7 +404,7 @@ def text_train_valid_test_split(original_file_path, train_file_path, valid_file_
 
     ### Generate Training/Valid/Test indices
     # All indices 
-    ind_all = np.array(range(1, N_total+int(input_header))) 
+    ind_all = np.array(range(N_total+int(input_header))) 
     # Train indices
     ind_train = np.random.choice(ind_all, size = N_train, replace = False) 
     # Remaing indices (either test or valid + test)
@@ -516,7 +516,7 @@ def df_train_valid_test_split(data, train_data_path, valid_data_path,
 
     ### Generate Training/Valid/Test indices
     # All indices 
-    ind_all = np.array(range(1, N_total)) 
+    ind_all = np.array(range(N_total)) 
     # Train indices
     ind_train = np.random.choice(ind_all, size = N_train, replace = False) 
     # Remaing indices (either test or valid + test)
