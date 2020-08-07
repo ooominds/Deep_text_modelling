@@ -1,6 +1,7 @@
 ### Import necessary packages
 import itertools
 from itertools import chain
+from collections import Counter 
 import csv 
 import gc
 import sys
@@ -165,9 +166,9 @@ def events_to_onehot_mat(events_df):
     
     # Extarct set of cues and outcomes
     sortedUniqueCues = sorted(Counter(
-                list(chain.from_iterable(events_df['Cues'].to_list()))).keys())
+                list(chain.from_iterable(events_df['cues'].to_list()))).keys())
     SortedUniqueOutcomes = sorted(Counter(
-                list(chain.from_iterable(events_df['Outcomes'].to_list()))).keys())
+                list(chain.from_iterable(events_df['outcomes'].to_list()))).keys())
     
     # Get num of cues, outcomes and events
     numUniqueCues = len(sortedUniqueCues)
@@ -180,10 +181,10 @@ def events_to_onehot_mat(events_df):
     
     # Fill in the one-hot encoding matrices
     for idx, row in events_df.iterrows():
-        for cue in row['Cues']:
+        for cue in row['cues']:
             cueIndex = sortedUniqueCues.index(cue)
             cueMatrix[idx, cueIndex] = 1
-        for outcome in row['Outcomes']:
+        for outcome in row['outcomes']:
             outcomeIndex = SortedUniqueOutcomes.index(outcome)
             outcomeMatrix[idx, outcomeIndex] = 1
     
@@ -2250,7 +2251,7 @@ def train_WH(data_train, data_valid, cue_index = None, outcome_index = None,
              params = {'epochs': 1, # number of iterations over the full set 
                        'lr': 0.0001}):
 
-    """ Train a native discriminative learning model
+    """ Train a Widrow-Hoff model
 
     Parameters
     ----------
@@ -2306,7 +2307,7 @@ def train_WH(data_train, data_valid, cue_index = None, outcome_index = None,
     Returns
     -------
     tuple
-        fit history and NDL_model class object (stores the weight and activation matrices) 
+        fit history and WH_model class object (stores the weight matrix) 
     """
 
     from deep_text_modelling.evaluation import activations_to_predictions, predict_outcomes_NDL
@@ -2580,7 +2581,7 @@ def train_WH(data_train, data_valid, cue_index = None, outcome_index = None,
         sys.stdout.flush()
                       
     ### Model object
-    model = NDLmodel(weights)
+    model = WHmodel(weights)
 
     if (j>1 and np.isnan(weights).any()): # display a message to notify about a divergence problem:
         sys.stdout.write('Warning: learning diverged in epoch %d!!!\n\n' % ((epoch_no_diverg+1)))
